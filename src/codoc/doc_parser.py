@@ -16,10 +16,50 @@ _HEADING_RE = re.compile(r"^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$")
 _BACKTICK_FENCE_RE = re.compile(r"^\s{0,3}(`{3,})([^`\n]*)$")
 _TILDE_FENCE_RE = re.compile(r"^\s{0,3}(~{3,})(.*)$")
 _BACKTICK_RE = re.compile(r"`([^`\n]+)`")
+_ENDPOINT_BACKTICK_RE = re.compile(
+    r"^(?:(GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\s+)?(/[A-Za-z0-9_.\-/{}:]*)$",
+    re.IGNORECASE,
+)
+_ENDPOINT_PROSE_RE = re.compile(
+    r"\b(GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\s+(/[A-Za-z0-9_.\-/{}:]+)"
+)
+_CONFIG_KEY_PROSE_RE = re.compile(r"\b([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)\b")
 _QUALIFIED_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+)\b")
 _CALL_TOKEN_RE = re.compile(
     r"^([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)(?:\(\))?$"
 )
+_CLI_TOKEN_RE = re.compile(r"^(?:--?[A-Za-z0-9][A-Za-z0-9_-]*|[A-Za-z0-9][A-Za-z0-9_-]*)$")
+_CLI_LOWER_CMD_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
+_CLI_SKIP_WORDS: frozenset[str] = frozenset({"python", "python3", "uv", "run", "pip", "poetry"})
+
+
+def _extract_cli_tokens(raw: str) -> list[str]:
+    parts = raw.split()
+    if len(parts) == 1:
+        token = parts[0]
+        if token.startswith("--") or ("-" in token and _CLI_TOKEN_RE.match(token)):
+            return [token]
+        return []
+    has_flag = any(p.startswith("-") for p in parts)
+    lower_cmds = [p for p in parts if _CLI_LOWER_CMD_RE.match(p)]
+    # Avoid matching non-CLI phrases like `HTTP POST`
+    if not has_flag and len(lower_cmds) < 2:
+        return []
+    tokens: list[str] = []
+    skip_next = False
+    for part in parts:
+        if skip_next:
+            skip_next = False
+            continue
+        if part == "-m":
+            skip_next = True
+            continue
+        if part in _CLI_SKIP_WORDS:
+            continue
+        if part.startswith("-") or _CLI_LOWER_CMD_RE.match(part):
+            if _CLI_TOKEN_RE.match(part):
+                tokens.append(part)
+    return tokens
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,17 +85,51 @@ def extract_code_references(text: str) -> tuple[CodeReference, ...]:
 
     for match in _BACKTICK_RE.finditer(text):
         raw = match.group(1).strip()
+        ep_match = _ENDPOINT_BACKTICK_RE.match(raw)
+        if ep_match:
+            method = ep_match.group(1)
+            route_path = ep_match.group(2)
+            norm = f"{method.upper()} {route_path}" if method else route_path
+            if (norm, "endpoint") not in seen:
+                seen.add((norm, "endpoint"))
+                refs.append(CodeReference(raw=raw, normalized=norm, kind="endpoint"))
+            continue
+        cli_tokens = _extract_cli_tokens(raw)
+        for token in cli_tokens:
+            if (token, "cli_command") not in seen:
+                seen.add((token, "cli_command"))
+                refs.append(
+                    CodeReference(raw=raw, normalized=token, kind="cli_command")
+                )
         normalized = _normalize_reference(raw)
         if normalized and (normalized, "backtick") not in seen:
             seen.add((normalized, "backtick"))
             refs.append(CodeReference(raw=raw, normalized=normalized, kind="backtick"))
 
     text_no_backticks = _BACKTICK_RE.sub(" ", text)
+    for match in _ENDPOINT_PROSE_RE.finditer(text_no_backticks):
+        norm = f"{match.group(1).upper()} {match.group(2)}"
+        if (norm, "endpoint") not in seen:
+            seen.add((norm, "endpoint"))
+            refs.append(
+                CodeReference(
+                    raw=f"{match.group(1)} {match.group(2)}",
+                    normalized=norm,
+                    kind="endpoint",
+                )
+            )
+
     for match in _QUALIFIED_RE.finditer(text_no_backticks):
         raw = match.group(1)
         if (raw, "qualified") not in seen and (raw, "backtick") not in seen:
             seen.add((raw, "qualified"))
             refs.append(CodeReference(raw=raw, normalized=raw, kind="qualified"))
+
+    for match in _CONFIG_KEY_PROSE_RE.finditer(text_no_backticks):
+        raw = match.group(1)
+        if (raw, "config_key") not in seen and (raw, "backtick") not in seen:
+            seen.add((raw, "config_key"))
+            refs.append(CodeReference(raw=raw, normalized=raw, kind="config_key"))
 
     return tuple(refs)
 

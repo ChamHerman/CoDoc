@@ -6,8 +6,23 @@ import hashlib
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterator, Literal
 
-ChunkType = Literal["function", "async_function", "class", "method", "async_method"]
-ReferenceKind = Literal["backtick", "qualified"]
+ChunkType = Literal[
+    "function",
+    "async_function",
+    "class",
+    "method",
+    "async_method",
+    "endpoint",
+    "schema",
+    "cli_command",
+]
+ReferenceKind = Literal[
+    "backtick",
+    "qualified",
+    "endpoint",
+    "config_key",
+    "cli_command",
+]
 LinkType = Literal["heuristic", "embedding", "hybrid"]
 
 DEFAULT_IGNORE_GLOBS: tuple[str, ...] = (
@@ -83,6 +98,8 @@ class CodeChunk:
     end_line: int
     raw_source: str
     content_hash: str
+    decorators: tuple[str, ...] = ()
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
