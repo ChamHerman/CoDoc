@@ -26,6 +26,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Output LinkGraph JSON path (defaults outside repository root)",
     )
     index_parser.add_argument(
+        "--chroma-dir",
+        type=Path,
+        default=None,
+        help="ChromaDB cache directory path (must be outside repository root)",
+    )
+    index_parser.add_argument(
         "--ignore",
         action="append",
         default=[],
@@ -94,6 +100,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             config=cfg,
             output_path=args.output,
             embedding_provider=provider,
+            chroma_dir=args.chroma_dir,
         )
         print(str(written_path))
         return 0
