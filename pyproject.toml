@@ -7,7 +7,9 @@ name = "codoc"
 version = "0.1.0"
 description = "Self-healing technical documentation monitor and repair engine"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "openai>=1.40",
+]
 
 [project.scripts]
 codoc = "codoc.cli:main"

@@ -66,6 +66,8 @@ def iter_repo_files(
 @dataclass(frozen=True, slots=True)
 class IndexConfig:
     ignore_globs: tuple[str, ...] = DEFAULT_IGNORE_GLOBS
+    embedding_threshold: float = 0.50
+    embedding_top_k: int = 5
 
 
 @dataclass(frozen=True, slots=True)

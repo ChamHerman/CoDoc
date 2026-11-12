@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import math
+from typing import Sequence
 
 from codoc.models import CodeChunk, DocSection, LinkEdge
 
@@ -60,6 +62,10 @@ def _module_dotted_name(file_path: str) -> str:
     if dotted.endswith(".__init__"):
         dotted = dotted[: -len(".__init__")]
     return dotted
+
+def _edge_sort_key(edge: LinkEdge) -> tuple[str, float, str]:
+    return (edge.source_section_id, -edge.score, edge.target_chunk_id)
+
 
 
 def build_heuristic_edges(
@@ -129,5 +135,86 @@ def build_heuristic_edges(
                 )
             )
 
-    edges.sort(key=lambda e: (e.source_section_id, e.target_chunk_id))
+    edges.sort(key=_edge_sort_key)
     return edges
+
+
+def cosine_similarity(vec_a: Sequence[float], vec_b: Sequence[float]) -> float:
+    if len(vec_a) != len(vec_b) or not vec_a:
+        return 0.0
+    dot = sum(a * b for a, b in zip(vec_a, vec_b))
+    norm_a = math.sqrt(sum(a * a for a in vec_a))
+    norm_b = math.sqrt(sum(b * b for b in vec_b))
+    if norm_a == 0.0 or norm_b == 0.0:
+        return 0.0
+    raw = dot / (norm_a * norm_b)
+    return max(-1.0, min(1.0, raw))
+
+
+def build_embedding_edges(
+    sections: Sequence[DocSection],
+    chunks: Sequence[CodeChunk],
+    section_vectors: Sequence[Sequence[float]],
+    chunk_vectors: Sequence[Sequence[float]],
+    threshold: float = 0.50,
+    top_k: int = 5,
+) -> list[LinkEdge]:
+    if top_k <= 0 or not sections or not chunks:
+        return []
+    edges: list[LinkEdge] = []
+    for section, s_vec in zip(sections, section_vectors, strict=True):
+        scored: list[tuple[float, str]] = []
+        for chunk, c_vec in zip(chunks, chunk_vectors, strict=True):
+            sim = cosine_similarity(s_vec, c_vec)
+            if sim >= threshold:
+                scored.append((round(sim, 6), chunk.chunk_id))
+        scored.sort(key=lambda item: (-item[0], item[1]))
+        for score, chunk_id in scored[:top_k]:
+            edges.append(
+                LinkEdge(
+                    source_section_id=section.section_id,
+                    target_chunk_id=chunk_id,
+                    link_type="embedding",
+                    score=score,
+                    evidence=(f"cosine:{score:.4f}",),
+                )
+            )
+    return edges
+
+
+def merge_link_edges(
+    heuristic_edges: Sequence[LinkEdge],
+    embedding_edges: Sequence[LinkEdge],
+) -> list[LinkEdge]:
+    by_pair: dict[tuple[str, str], tuple[LinkEdge | None, LinkEdge | None]] = {}
+    for h in heuristic_edges:
+        key = (h.source_section_id, h.target_chunk_id)
+        by_pair[key] = (h, None)
+    for e in embedding_edges:
+        key = (e.source_section_id, e.target_chunk_id)
+        prev_h, _ = by_pair.get(key, (None, None))
+        by_pair[key] = (prev_h, e)
+
+    merged: list[LinkEdge] = []
+    for (section_id, chunk_id), (h_edge, e_edge) in by_pair.items():
+        if h_edge is not None and e_edge is not None:
+            combined_score = round(
+                min(1.0, max(h_edge.score, e_edge.score) + 0.1 * min(h_edge.score, e_edge.score)),
+                6,
+            )
+            merged.append(
+                LinkEdge(
+                    source_section_id=section_id,
+                    target_chunk_id=chunk_id,
+                    link_type="hybrid",
+                    score=combined_score,
+                    evidence=tuple(sorted({*h_edge.evidence, *e_edge.evidence})),
+                )
+            )
+        elif h_edge is not None:
+            merged.append(h_edge)
+        elif e_edge is not None:
+            merged.append(e_edge)
+
+    merged.sort(key=_edge_sort_key)
+    return merged
