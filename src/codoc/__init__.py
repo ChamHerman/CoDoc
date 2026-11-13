@@ -1,6 +1,8 @@
 from codoc.change_detector import (
     StalenessVerifier,
     detect_stale_sections,
+    find_unlinked_new_symbols,
+    is_public_chunk,
     resolve_suspect_sections,
 )
 from codoc.diff_parser import (
@@ -45,6 +47,8 @@ __all__ = [
     "detect_stale_sections",
     "extract_code_deltas",
     "filter_code_deltas",
+    "find_unlinked_new_symbols",
+    "is_public_chunk",
     "load_file_content",
     "parse_unified_diff",
 ]

@@ -121,6 +121,20 @@ def extract_code_deltas(
             else []
         )
 
+        if fd.old_path is None and fd.new_path is not None:
+            for chunk in new_chunks:
+                deltas.append(
+                    CodeDelta(delta_type="added", old_chunk=None, new_chunk=chunk)
+                )
+            continue
+
+        if fd.new_path is None and fd.old_path is not None:
+            for chunk in old_chunks:
+                deltas.append(
+                    CodeDelta(delta_type="deleted", old_chunk=chunk, new_chunk=None)
+                )
+            continue
+
         old_by_id = {c.chunk_id: c for c in old_chunks}
         new_by_id = {c.chunk_id: c for c in new_chunks}
 

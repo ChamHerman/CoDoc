@@ -40,6 +40,7 @@ DEFAULT_IGNORE_GLOBS: tuple[str, ...] = (
     "dist/**",
     ".codoc/**",
     "*.egg-info/**",
+    "migrations/**",
 )
 
 
@@ -103,6 +104,16 @@ class CodeChunk:
     content_hash: str
     decorators: tuple[str, ...] = ()
     metadata: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def is_public(self) -> bool:
+        if self.chunk_type in ("endpoint", "schema", "cli_command"):
+            return True
+        for part in PurePosixPath(self.file_path).parts:
+            if part.startswith("_") and not part.startswith("__"):
+                return False
+        parts = self.qualified_name.split(".")
+        return not any(part.startswith("_") for part in parts)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
