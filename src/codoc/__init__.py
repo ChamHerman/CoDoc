@@ -27,6 +27,11 @@ from codoc.models import (
     StalenessVerdict,
     SuspectSection,
 )
+from codoc.verifier import (
+    LLMStalenessVerifier,
+    build_verification_prompt,
+    parse_staleness_verdict_json,
+)
 __all__ = [
     "ChangeDetectorConfig",
     "ChangeFilterResult",
@@ -39,6 +44,7 @@ __all__ = [
     "IndexConfig",
     "LinkEdge",
     "LinkGraph",
+    "LLMStalenessVerifier",
     "OpenAIEmbeddingProvider",
     "StalenessVerdict",
     "StalenessVerifier",
@@ -51,4 +57,6 @@ __all__ = [
     "is_public_chunk",
     "load_file_content",
     "parse_unified_diff",
+    "build_verification_prompt",
+    "parse_staleness_verdict_json",
 ]
