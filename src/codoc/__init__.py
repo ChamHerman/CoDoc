@@ -11,7 +11,12 @@ from codoc.diff_parser import (
     load_file_content,
     parse_unified_diff,
 )
-from codoc.embeddings import EmbeddingProvider, OpenAIEmbeddingProvider
+from codoc.embeddings import (
+    EmbeddingProvider,
+    FastEmbedProvider,
+    OpenAIEmbeddingProvider,
+    get_default_embedding_provider,
+)
 from codoc.indexer import build_index
 from codoc.models import (
     ChangeDetectorConfig,
@@ -41,6 +46,7 @@ __all__ = [
     "DiffContext",
     "DocSection",
     "EmbeddingProvider",
+    "FastEmbedProvider",
     "IndexConfig",
     "LinkEdge",
     "LinkGraph",
@@ -59,4 +65,5 @@ __all__ = [
     "parse_unified_diff",
     "build_verification_prompt",
     "parse_staleness_verdict_json",
+    "get_default_embedding_provider",
 ]

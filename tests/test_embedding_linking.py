@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Sequence
 
+from unittest.mock import MagicMock
 import pytest
 from types import SimpleNamespace
 from typing import cast
@@ -11,9 +12,11 @@ from typing import cast
 from openai import OpenAI
 
 from codoc.embeddings import (
+    FastEmbedProvider,
     OpenAIEmbeddingProvider,
     format_chunk_for_embedding,
     format_section_for_embedding,
+    get_default_embedding_provider,
 )
 from codoc.indexer import build_index
 from codoc.models import IndexConfig
@@ -318,3 +321,35 @@ def test_build_index_raises_when_embedding_provider_returns_mismatched_count(
             output_path=tmp_path / "bad.json",
             embedding_provider=_BrokenProvider(),
         )
+
+
+def test_fastembed_provider_mock_model() -> None:
+    mock_model = MagicMock()
+    mock_model.embed.return_value = [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
+    provider = FastEmbedProvider(model=mock_model)
+
+    vectors = provider.embed_texts(["doc1", "doc2"])
+    assert len(vectors) == 2
+    assert vectors[0] == [0.1, 0.2, 0.3]
+    assert vectors[1] == [0.4, 0.5, 0.6]
+    assert mock_model.embed.call_count == 1
+
+
+def test_fastembed_provider_real_execution() -> None:
+    provider = FastEmbedProvider()
+    vectors = provider.embed_texts(["invoice billing calculation", "calculate discount promotional"])
+    assert len(vectors) == 2
+    assert len(vectors[0]) == 384
+    assert all(isinstance(v, float) for v in vectors[0])
+
+
+def test_get_default_embedding_provider_routing() -> None:
+    # 1. Defaults to FastEmbedProvider
+    default_p = get_default_embedding_provider()
+    assert isinstance(default_p, FastEmbedProvider)
+    assert default_p.model_name == "sentence-transformers/all-MiniLM-L6-v2"
+
+    # 2. Explicit OpenAI provider
+    openai_p = get_default_embedding_provider(provider_name="openai", api_key="sk-test")
+    assert isinstance(openai_p, OpenAIEmbeddingProvider)
+    assert openai_p.model == "text-embedding-3-small"

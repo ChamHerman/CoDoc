@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import ast
 import os
-from typing import Protocol, Sequence
+from typing import Any, Protocol, Sequence
 
 from openai import OpenAI
 
@@ -56,6 +56,52 @@ class OpenAIEmbeddingProvider:
             vectors.extend(list(item.embedding) for item in ordered)
         return vectors
 
+
+
+class FastEmbedProvider:
+    """Local, private, CPU-friendly embeddings adapter using FastEmbed (ONNX)."""
+
+    def __init__(
+        self,
+        model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+        batch_size: int = 128,
+        model: Any = None,
+    ) -> None:
+        self.model_name = model_name
+        self.batch_size = max(1, batch_size)
+        self._model = model
+
+    def _get_model(self) -> Any:
+        if self._model is None:
+            from fastembed import TextEmbedding
+
+            # ponytail: all-MiniLM-L6-v2 on ONNX CPU; upgrade to GPU/multi-model when larger local models needed
+            self._model = TextEmbedding(model_name=self.model_name)
+        return self._model
+
+    def embed_texts(self, texts: Sequence[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        model = self._get_model()
+        embeddings = model.embed(list(texts), batch_size=self.batch_size)
+        return [list(float(x) for x in emb) for emb in embeddings]
+
+
+def get_default_embedding_provider(
+    provider_name: str = "fastembed",
+    model: str | None = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
+) -> EmbeddingProvider:
+    if provider_name == "openai" or (provider_name != "fastembed" and (api_key or base_url)):
+        return OpenAIEmbeddingProvider(
+            api_key=api_key,
+            model=model or "text-embedding-3-small",
+            base_url=base_url,
+        )
+    return FastEmbedProvider(
+        model_name=model or "sentence-transformers/all-MiniLM-L6-v2",
+    )
 
 def _normalized_body_summary(chunk: CodeChunk) -> str:
     try:

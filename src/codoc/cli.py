@@ -5,7 +5,12 @@ import os
 from pathlib import Path
 from typing import Sequence
 
-from codoc.embeddings import EmbeddingProvider, OpenAIEmbeddingProvider
+from codoc.embeddings import (
+    EmbeddingProvider,
+    FastEmbedProvider,
+    OpenAIEmbeddingProvider,
+    get_default_embedding_provider,
+)
 from codoc.indexer import build_index
 from codoc.models import DEFAULT_IGNORE_GLOBS, IndexConfig
 
@@ -38,9 +43,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Additional ignore glob patterns",
     )
     index_parser.add_argument(
+        "--embedding-provider",
+        choices=["fastembed", "openai"],
+        default="fastembed",
+        help="Embedding provider: fastembed (local free CPU) or openai (default: fastembed)",
+    )
+    index_parser.add_argument(
         "--embedding-model",
-        default="text-embedding-3-small",
-        help="Embedding model name (default: text-embedding-3-small)",
+        default=None,
+        help="Embedding model name (default: sentence-transformers/all-MiniLM-L6-v2 for fastembed, text-embedding-3-small for openai)",
     )
     index_parser.add_argument(
         "--embedding-base-url",
@@ -86,12 +97,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         )
         provider: EmbeddingProvider | None = None
-        if not args.no_embeddings and (
-            api_key is not None or args.embedding_base_url is not None
-        ):
-            provider = OpenAIEmbeddingProvider(
-                api_key=api_key,
+        if not args.no_embeddings:
+            provider = get_default_embedding_provider(
+                provider_name=args.embedding_provider,
                 model=args.embedding_model,
+                api_key=api_key,
                 base_url=args.embedding_base_url,
             )
 
