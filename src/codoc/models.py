@@ -24,6 +24,9 @@ ReferenceKind = Literal[
     "cli_command",
 ]
 LinkType = Literal["heuristic", "embedding", "hybrid"]
+DeltaType = Literal["added", "modified", "deleted"]
+ChangeStatus = Literal["meaningful", "skipped"]
+ChangeComplexity = Literal["simple", "complex"]
 
 DEFAULT_IGNORE_GLOBS: tuple[str, ...] = (
     ".git/**",
@@ -158,3 +161,93 @@ class LinkGraph:
             "doc_sections": [s.to_dict() for s in self.doc_sections],
             "edges": [e.to_dict() for e in self.edges],
         }
+
+
+@dataclass(frozen=True, slots=True)
+class CodeDelta:
+    delta_type: DeltaType
+    old_chunk: CodeChunk | None = None
+    new_chunk: CodeChunk | None = None
+
+    @property
+    def chunk_id(self) -> str:
+        if self.new_chunk is not None:
+            return self.new_chunk.chunk_id
+        if self.old_chunk is not None:
+            return self.old_chunk.chunk_id
+        return ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "delta_type": self.delta_type,
+            "old_chunk": self.old_chunk.to_dict() if self.old_chunk is not None else None,
+            "new_chunk": self.new_chunk.to_dict() if self.new_chunk is not None else None,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ChangeFilterResult:
+    delta: CodeDelta
+    status: ChangeStatus
+    reason: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "delta": self.delta.to_dict(),
+            "status": self.status,
+            "reason": self.reason,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class SuspectSection:
+    section: DocSection
+    deltas: tuple[CodeDelta, ...]
+    score: float = 0.0
+    evidence: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "section": self.section.to_dict(),
+            "deltas": [d.to_dict() for d in self.deltas],
+            "score": self.score,
+            "evidence": list(self.evidence),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class StalenessVerdict:
+    section_id: str
+    is_stale: bool
+    diagnosis: str
+    change_complexity: ChangeComplexity
+    confidence: float
+    suspect_section: SuspectSection | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "section_id": self.section_id,
+            "is_stale": self.is_stale,
+            "diagnosis": self.diagnosis,
+            "change_complexity": self.change_complexity,
+            "confidence": self.confidence,
+            "suspect_section": (
+                self.suspect_section.to_dict()
+                if self.suspect_section is not None
+                else None
+            ),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class DiffContext:
+    unified_diff: str
+    base_files: dict[str, str] = field(default_factory=dict)
+    head_files: dict[str, str] = field(default_factory=dict)
+    repo_root: Path | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ChangeDetectorConfig:
+    ignore_globs: tuple[str, ...] = DEFAULT_IGNORE_GLOBS
+    max_suspects: int = 25
