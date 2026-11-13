@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import difflib
 import json
+from pathlib import Path
+import re
 from typing import Any, Protocol, Sequence
+
+from codoc.diff_parser import load_file_content
 from codoc.models import (
     DocSection,
     RepairConfig,
@@ -120,11 +124,93 @@ class PatchValidator(Protocol):
         ...
 
 
+_PLACEHOLDER_RE = re.compile(r"<!--\s*(TODO|FIXME)|(TODO|FIXME):", re.IGNORECASE)
+
+
+def compose_patched_document(
+    original_doc: str,
+    section_patches: Sequence[tuple[DocSection, RepairPatch]],
+) -> str:
+    for _, patch in section_patches:
+        if _PLACEHOLDER_RE.search(patch.proposed_content):
+            raise ValueError("Generated patch must not contain TODO or FIXME placeholder markers.")
+
+    if not section_patches:
+        return original_doc
+
+    # Validate section boundaries
+    for sec, _ in section_patches:
+        if sec.start_line < 1 or sec.start_line > sec.end_line:
+            raise ValueError(
+                f"Malformed section line range: start_line={sec.start_line}, end_line={sec.end_line}."
+            )
+
+    sorted_asc = sorted(section_patches, key=lambda sp: (sp[0].start_line, sp[0].end_line))
+    for i in range(len(sorted_asc) - 1):
+        cur_sec = sorted_asc[i][0]
+        next_sec = sorted_asc[i + 1][0]
+        if cur_sec.end_line >= next_sec.start_line:
+            raise ValueError(
+                f"Found overlapping sections in document patches: {cur_sec.section_id} and {next_sec.section_id}."
+            )
+
+    newline = "\r\n" if "\r\n" in original_doc else "\n"
+    has_trailing_newline = original_doc.endswith(("\r\n", "\n"))
+
+    orig_lines = original_doc.splitlines()
+
+    for sec, patch in reversed(sorted_asc):
+        start_idx = sec.start_line - 1
+        end_idx = min(len(orig_lines), sec.end_line)
+        replacement = patch.proposed_content.splitlines()
+        orig_lines[start_idx:end_idx] = replacement
+
+    result = newline.join(orig_lines)
+    if has_trailing_newline and not result.endswith(newline):
+        result += newline
+    elif not has_trailing_newline and result.endswith(newline):
+        result = result[:-len(newline)]
+    return result
+
+
+def format_review_flag_comment(item: RepairItem) -> str:
+    return item.format_comment()
+
+def compose_patched_files(
+    items: Sequence[RepairItem],
+    original_files: dict[str, str] | None = None,
+    repo_root: Path | None = None,
+) -> dict[str, str]:
+    from collections import defaultdict
+    patches_by_file: dict[str, list[tuple[DocSection, RepairPatch]]] = defaultdict(list)
+
+    for item in items:
+        if (
+            item.mode == "auto_fix"
+            and item.patch is not None
+            and item.verdict.suspect_section is not None
+        ):
+            sec = item.verdict.suspect_section.section
+            patches_by_file[sec.file_path].append((sec, item.patch))
+
+    patched_files: dict[str, str] = {}
+    for file_path, sec_patches in patches_by_file.items():
+        original_doc = load_file_content(file_path, original_files or {}, repo_root)
+        if original_doc is None:
+            continue
+        patched_doc = compose_patched_document(original_doc, sec_patches)
+        patched_files[file_path] = patched_doc
+
+    return patched_files
+
+
 def repair_stale_sections(
     stale_verdicts: Sequence[StalenessVerdict],
     config: RepairConfig | None = None,
     generator: PatchGenerator | None = None,
     validator: PatchValidator | None = None,
+    original_files: dict[str, str] | None = None,
+    repo_root: Path | None = None,
 ) -> RepairPlan:
     cfg = config or RepairConfig()
     items: list[RepairItem] = []
@@ -147,7 +233,8 @@ def repair_stale_sections(
         )
         items.append(item)
 
-    return RepairPlan(items=tuple(items))
+    patched_files = compose_patched_files(items, original_files, repo_root)
+    return RepairPlan(items=tuple(items), patched_files=patched_files)
 
 
 class MockPatchGenerator:

@@ -319,6 +319,32 @@ class RepairItem:
             "validation": self.validation.to_dict() if self.validation is not None else None,
             "rejection_reasons": list(self.rejection_reasons),
         }
+    def format_comment(self) -> str:
+        sec = self.verdict.suspect_section.section if self.verdict.suspect_section else None
+        doc_path = sec.file_path if sec else (self.patch.doc_path if self.patch else "documentation")
+        sec_id = sec.section_id if sec else self.verdict.section_id
+
+        reasons_md = (
+            "\n".join(f"- {r}" for r in self.rejection_reasons)
+            if self.rejection_reasons
+            else "- Review required before merging."
+        )
+
+        diff_block = ""
+        if self.patch and self.patch.unified_diff.strip():
+            diff_block = f"#### Proposed Draft Changes\n```diff\n{self.patch.unified_diff.strip()}\n```\n"
+
+        return (
+            f"### ⚠️ Documentation Review Flag\n"
+            f"- **File:** `{doc_path}` (Section: `{sec_id}`)\n"
+            f"- **Diagnosis:** {self.verdict.diagnosis}\n"
+            f"- **Confidence:** {self.verdict.confidence:.2f}\n"
+            f"- **Complexity:** `{self.verdict.change_complexity}`\n\n"
+            f"#### Review Reasons\n"
+            f"{reasons_md}\n\n"
+            f"{diff_block}"
+        ).strip() + "\n"
+
 
 
 @dataclass(frozen=True, slots=True)
