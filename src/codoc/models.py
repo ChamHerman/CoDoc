@@ -26,6 +26,7 @@ ReferenceKind = Literal[
 LinkType = Literal["heuristic", "embedding", "hybrid"]
 DeltaType = Literal["added", "modified", "deleted"]
 ChangeStatus = Literal["meaningful", "skipped"]
+RepairMode = Literal["auto_fix", "review_flag"]
 ChangeComplexity = Literal["simple", "complex"]
 
 DEFAULT_IGNORE_GLOBS: tuple[str, ...] = (
@@ -262,3 +263,87 @@ class DiffContext:
 class ChangeDetectorConfig:
     ignore_globs: tuple[str, ...] = DEFAULT_IGNORE_GLOBS
     max_suspects: int = 25
+
+
+@dataclass(frozen=True, slots=True)
+class RepairPatch:
+    section_id: str
+    doc_path: str
+    original_content: str
+    proposed_content: str
+    unified_diff: str
+    summary: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "section_id": self.section_id,
+            "doc_path": self.doc_path,
+            "original_content": self.original_content,
+            "proposed_content": self.proposed_content,
+            "unified_diff": self.unified_diff,
+            "summary": self.summary,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ValidationVerdict:
+    passed: bool
+    accuracy_ok: bool
+    preservation_ok: bool
+    style_ok: bool
+    issues: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "passed": self.passed,
+            "accuracy_ok": self.accuracy_ok,
+            "preservation_ok": self.preservation_ok,
+            "style_ok": self.style_ok,
+            "issues": list(self.issues),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class RepairItem:
+    mode: RepairMode
+    verdict: StalenessVerdict
+    patch: RepairPatch | None = None
+    validation: ValidationVerdict | None = None
+    rejection_reasons: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "mode": self.mode,
+            "verdict": self.verdict.to_dict(),
+            "patch": self.patch.to_dict() if self.patch is not None else None,
+            "validation": self.validation.to_dict() if self.validation is not None else None,
+            "rejection_reasons": list(self.rejection_reasons),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class RepairPlan:
+    items: tuple[RepairItem, ...] = ()
+    patched_files: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def auto_fixes(self) -> tuple[RepairItem, ...]:
+        return tuple(item for item in self.items if item.mode == "auto_fix")
+
+    @property
+    def review_flags(self) -> tuple[RepairItem, ...]:
+        return tuple(item for item in self.items if item.mode == "review_flag")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "items": [item.to_dict() for item in self.items],
+            "patched_files": dict(self.patched_files),
+            "auto_fixes_count": len(self.auto_fixes),
+            "review_flags_count": len(self.review_flags),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class RepairConfig:
+    confidence_threshold: float = 0.80
+    max_retries: int = 2
