@@ -420,10 +420,8 @@ class LLMPatchValidator:
 
         for _ in range(attempts):
             try:
-                if self._llm.provider == "anthropic":
-                    raw_text = self._llm._call_anthropic(prompt)
-                else:
-                    raw_text = self._llm._call_openai(prompt)
+                sys_prompt = "You are an independent documentation quality gate verifier. Always respond in valid JSON."
+                raw_text = self._llm.complete(prompt, system_prompt=sys_prompt)
                 return parse_validation_verdict_json(raw_text)
             except Exception as exc:
                 last_error = str(exc)
@@ -436,3 +434,120 @@ class LLMPatchValidator:
             style_ok=False,
             issues=(f"Validation failed due to malformed LLM response: {last_error}",),
         )
+
+
+def build_patch_generation_prompt(
+    verdict: StalenessVerdict,
+    surrounding_context: str | None = None,
+) -> str:
+    sec = verdict.suspect_section.section if verdict.suspect_section else None
+    doc_path = sec.file_path if sec else "doc.md"
+    sec_id = sec.section_id if sec else verdict.section_id
+    orig_content = sec.raw_content if sec else ""
+
+    deltas_block: list[str] = []
+    if verdict.suspect_section is not None:
+        for delta in verdict.suspect_section.deltas:
+            old_src = delta.old_chunk.raw_source if delta.old_chunk else "(new symbol)"
+            new_src = delta.new_chunk.raw_source if delta.new_chunk else "(deleted symbol)"
+            deltas_block.append(
+                f"### Symbol: {delta.chunk_id} ({delta.delta_type})\n"
+                f"#### Old Code:\n```python\n{old_src.strip()}\n```\n"
+                f"#### New Code:\n```python\n{new_src.strip()}\n```"
+            )
+    code_context = "\n\n".join(deltas_block) if deltas_block else "(no code deltas)"
+    context_block = f"\n## Neighboring Context:\n{surrounding_context.strip()}\n" if surrounding_context else ""
+
+    return (
+        "You are an expert technical documentation repair assistant.\n"
+        "Your task is to rewrite the target documentation section so that it accurately reflects "
+        "the code changes and resolves the staleness diagnosis.\n\n"
+        f"## Target Document: {doc_path} (Section: {sec_id})\n"
+        f"## Staleness Diagnosis:\n{verdict.diagnosis}\n\n"
+        f"## Code Changes:\n{code_context}\n"
+        f"{context_block}\n"
+        "## Current Documentation Content:\n"
+        f"```markdown\n{orig_content.strip()}\n```\n\n"
+        "## Instructions:\n"
+        "1. Update only the parts affected by the code changes and diagnosis.\n"
+        "2. Preserve unaffected explanations, headings, admonitions, and Markdown formatting style.\n"
+        "3. NEVER insert TODO, FIXME, or draft placeholder markers.\n\n"
+        "## Output Instructions:\n"
+        "Return ONLY a valid JSON object with the following schema:\n"
+        "{\n"
+        '  "proposed_content": string (the complete replacement markdown for this section),\n'
+        '  "summary": string (brief summary of what was updated)\n'
+        "}"
+    )
+
+
+def parse_patch_proposal_json(
+    raw_text: str,
+    verdict: StalenessVerdict,
+) -> RepairPatch:
+    cleaned = _extract_json_block(raw_text)
+    data = json.loads(cleaned)
+
+    if not isinstance(data, dict):
+        raise ValueError("Patch proposal response did not contain a JSON object.")
+
+    proposed_content = data.get("proposed_content")
+    if not isinstance(proposed_content, str) or not proposed_content.strip():
+        raise ValueError("Field 'proposed_content' must be a non-empty string.")
+
+    raw_summary = data.get("summary")
+    if raw_summary is not None and not isinstance(raw_summary, str):
+        raise ValueError("Field 'summary' must be a string.")
+    summary = str(raw_summary or "").strip()
+    sec = verdict.suspect_section.section if verdict.suspect_section else None
+
+    return create_repair_patch(
+        target_section=sec,
+        proposed_content=proposed_content,
+        summary=summary,
+        section_id=verdict.section_id,
+        doc_path=sec.file_path if sec else "doc.md",
+        original_content=sec.raw_content if sec else "",
+    )
+
+
+class LLMPatchGenerator:
+    """Production LLM-based documentation repair patch generator."""
+
+    def __init__(
+        self,
+        provider: str = "openai",
+        model: str | None = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        client: Any = None,
+        max_retries: int = 2,
+    ) -> None:
+        self._llm = LLMStalenessVerifier(
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            base_url=base_url,
+            client=client,
+            max_retries=max_retries,
+        )
+
+    def generate_patch(
+        self,
+        verdict: StalenessVerdict,
+        config: RepairConfig | None = None,
+        surrounding_context: str | None = None,
+    ) -> RepairPatch | None:
+        prompt = build_patch_generation_prompt(verdict, surrounding_context=surrounding_context)
+        retries = config.max_retries if config else self._llm.max_retries
+        attempts = 1 + retries
+
+        for _ in range(attempts):
+            try:
+                sys_prompt = "You are an expert technical documentation repair assistant. Always respond in valid JSON."
+                raw_text = self._llm.complete(prompt, system_prompt=sys_prompt)
+                return parse_patch_proposal_json(raw_text, verdict)
+            except Exception:
+                continue
+
+        return None

@@ -141,14 +141,12 @@ class LLMStalenessVerifier:
             self._client = OpenAI(api_key=resolved_key, base_url=self._base_url)
         return self._client  # type: ignore[no-any-return]
 
-    def _call_openai(self, prompt: str) -> str:
+    def _call_openai(self, prompt: str, system_prompt: str | None = None) -> str:
         client = self._get_openai_client()
         completions: Any = client.chat.completions
+        sys_msg = system_prompt or "You are a code documentation assistant. Always respond in valid JSON."
         messages = [
-            {
-                "role": "system",
-                "content": "You are a code documentation verification assistant. Always respond in valid JSON.",
-            },
+            {"role": "system", "content": sys_msg},
             {"role": "user", "content": prompt},
         ]
         try:
@@ -165,13 +163,16 @@ class LLMStalenessVerifier:
             )
         return str(resp.choices[0].message.content or "")
 
-    def _call_anthropic(self, prompt: str) -> str:
+    def _call_anthropic(self, prompt: str, system_prompt: str | None = None) -> str:
+        messages = [{"role": "user", "content": prompt}]
+        sys_kwargs: dict[str, Any] = {"system": system_prompt} if system_prompt else {}
         if self._client is not None:
             if hasattr(self._client, "messages"):
                 resp = self._client.messages.create(
                     model=self.model,
                     max_tokens=1024,
-                    messages=[{"role": "user", "content": prompt}],
+                    messages=messages,
+                    **sys_kwargs,
                 )
                 first_block = resp.content[0]
                 if hasattr(first_block, "text"):
@@ -204,6 +205,11 @@ class LLMStalenessVerifier:
         with urllib.request.urlopen(req) as response:
             res_data = json.loads(response.read().decode("utf-8"))
             return str(res_data["content"][0]["text"])
+
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+        if self.provider == "anthropic":
+            return self._call_anthropic(prompt, system_prompt=system_prompt)
+        return self._call_openai(prompt, system_prompt=system_prompt)
 
     def verify_staleness(self, suspect: SuspectSection) -> StalenessVerdict:
         prompt = build_verification_prompt(suspect)

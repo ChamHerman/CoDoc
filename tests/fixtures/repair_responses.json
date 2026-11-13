@@ -1,0 +1,22 @@
+{
+  "generator_valid_simple": {
+    "response": "{\n  \"proposed_content\": \"## Calculation\\nCalculate the price with `rate` defaulting to 0.05.\\n\",\n  \"summary\": \"Updated default rate to 0.05\"\n}",
+    "expected_summary": "Updated default rate to 0.05",
+    "expected_content_snippet": "rate` defaulting to 0.05"
+  },
+  "generator_fenced_json": {
+    "response": "```json\n{\n  \"proposed_content\": \"## Endpoints\\n`GET /v2/items` returns paginated list.\\n\",\n  \"summary\": \"Bump endpoint version to v2\"\n}\n```",
+    "expected_summary": "Bump endpoint version to v2",
+    "expected_content_snippet": "/v2/items"
+  },
+  "validator_pass": {
+    "response": "{\n  \"accuracy_ok\": true,\n  \"preservation_ok\": true,\n  \"style_ok\": true,\n  \"issues\": []\n}",
+    "expected_passed": true,
+    "expected_issues_count": 0
+  },
+  "validator_fail_issues": {
+    "response": "```json\n{\n  \"accuracy_ok\": false,\n  \"preservation_ok\": true,\n  \"style_ok\": false,\n  \"issues\": [\n    \"Incorrect return value description\",\n    \"Heading hierarchy downgraded\"\n  ]\n}\n```",
+    "expected_passed": false,
+    "expected_issues_count": 2
+  }
+}
