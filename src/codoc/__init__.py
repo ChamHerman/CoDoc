@@ -44,10 +44,14 @@ from codoc.verifier import (
     parse_staleness_verdict_json,
 )
 from codoc.repair_engine import (
+    LLMPatchValidator,
     PatchGenerator,
     PatchValidator,
+    build_validation_prompt,
     create_repair_patch,
+    evaluate_validation_verdict,
     generate_unified_diff,
+    parse_validation_verdict_json,
     repair_stale_sections,
     route_repair_item,
 )
@@ -68,8 +72,12 @@ __all__ = [
     "OpenAIEmbeddingProvider",
     "StalenessVerdict",
     "StalenessVerifier",
+    "LLMPatchValidator",
     "PatchGenerator",
     "PatchValidator",
+    "build_validation_prompt",
+    "evaluate_validation_verdict",
+    "parse_validation_verdict_json",
     "RepairConfig",
     "RepairItem",
     "RepairMode",

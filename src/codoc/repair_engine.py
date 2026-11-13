@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import difflib
-from typing import Protocol, Sequence
-
+import json
+from typing import Any, Protocol, Sequence
 from codoc.models import (
     DocSection,
     RepairConfig,
@@ -13,6 +13,7 @@ from codoc.models import (
     StalenessVerdict,
     ValidationVerdict,
 )
+from codoc.verifier import LLMStalenessVerifier, _extract_json_block
 
 
 def generate_unified_diff(
@@ -195,4 +196,156 @@ class MockPatchValidator:
             accuracy_ok=True,
             preservation_ok=True,
             style_ok=True,
+        )
+
+
+def evaluate_validation_verdict(
+    accuracy_ok: bool,
+    preservation_ok: bool,
+    style_ok: bool,
+    issues: Sequence[str] = (),
+) -> ValidationVerdict:
+    passed = bool(accuracy_ok and preservation_ok and style_ok)
+    final_issues = list(issues)
+    if not passed and not final_issues:
+        if not accuracy_ok:
+            final_issues.append("Factual inaccuracy against code change.")
+        if not preservation_ok:
+            final_issues.append("Accurate existing explanations or examples were removed.")
+        if not style_ok:
+            final_issues.append("Style or formatting inconsistency with surrounding document.")
+    return ValidationVerdict(
+        passed=passed,
+        accuracy_ok=accuracy_ok,
+        preservation_ok=preservation_ok,
+        style_ok=style_ok,
+        issues=tuple(final_issues),
+    )
+
+
+def build_validation_prompt(
+    patch: RepairPatch,
+    verdict: StalenessVerdict,
+) -> str:
+    deltas_block: list[str] = []
+    if verdict.suspect_section is not None:
+        for delta in verdict.suspect_section.deltas:
+            new_src = (
+                delta.new_chunk.raw_source
+                if delta.new_chunk is not None
+                else "(deleted symbol)"
+            )
+            deltas_block.append(
+                f"### Symbol: {delta.chunk_id}\n```python\n{new_src.strip()}\n```"
+            )
+    code_context = "\n\n".join(deltas_block) if deltas_block else "(no code deltas)"
+
+    return (
+        "You are an independent documentation quality gate verifier.\n"
+        "Evaluate whether the proposed documentation patch accurately updates the documentation "
+        "while preserving valid existing content and document style.\n\n"
+        f"## Target Document: {patch.doc_path} (Section: {patch.section_id})\n"
+        f"## Phase 2 Staleness Diagnosis:\n{verdict.diagnosis}\n\n"
+        "## Relevant New Code:\n"
+        f"{code_context}\n\n"
+        "## Original Documentation Content:\n"
+        f"```markdown\n{patch.original_content.strip()}\n```\n\n"
+        "## Proposed Patched Documentation Content:\n"
+        f"```markdown\n{patch.proposed_content.strip()}\n```\n\n"
+        "## Verification Criteria:\n"
+        "1. accuracy_ok: Is the proposed documentation factually accurate according to the code changes?\n"
+        "2. preservation_ok: Does it preserve existing accurate explanations, examples, and warnings?\n"
+        "3. style_ok: Does it maintain consistent Markdown headings, formatting, and tone?\n\n"
+        "## Output Instructions:\n"
+        "Return ONLY a valid JSON object with schema:\n"
+        "{\n"
+        '  "accuracy_ok": boolean,\n'
+        '  "preservation_ok": boolean,\n'
+        '  "style_ok": boolean,\n'
+        '  "issues": list of strings (reasons for any check that is false)\n'
+        "}"
+    )
+
+
+def parse_validation_verdict_json(raw_text: str) -> ValidationVerdict:
+    cleaned = _extract_json_block(raw_text)
+    data = json.loads(cleaned)
+
+    if not isinstance(data, dict):
+        raise ValueError("Validator response did not contain a JSON object.")
+
+    if not isinstance(data.get("accuracy_ok"), bool):
+        raise ValueError("Field 'accuracy_ok' must be boolean.")
+    if not isinstance(data.get("preservation_ok"), bool):
+        raise ValueError("Field 'preservation_ok' must be boolean.")
+    if not isinstance(data.get("style_ok"), bool):
+        raise ValueError("Field 'style_ok' must be boolean.")
+
+    raw_issues = data.get("issues")
+    if raw_issues is None:
+        issues = []
+    elif isinstance(raw_issues, str):
+        issues = [raw_issues.strip()] if raw_issues.strip() else []
+    elif isinstance(raw_issues, list):
+        issues = [str(i).strip() for i in raw_issues if str(i).strip()]
+    else:
+        issues = []
+
+    return evaluate_validation_verdict(
+        accuracy_ok=data["accuracy_ok"],
+        preservation_ok=data["preservation_ok"],
+        style_ok=data["style_ok"],
+        issues=issues,
+    )
+
+
+class LLMPatchValidator:
+    """Independent second-pass LLM validator quality gate for documentation repair patches."""
+
+    def __init__(
+        self,
+        provider: str = "openai",
+        model: str | None = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        client: Any = None,
+        max_retries: int = 2,
+    ) -> None:
+        self._llm = LLMStalenessVerifier(
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            base_url=base_url,
+            client=client,
+            max_retries=max_retries,
+        )
+
+    def validate_patch(
+        self,
+        patch: RepairPatch,
+        verdict: StalenessVerdict,
+        config: RepairConfig | None = None,
+    ) -> ValidationVerdict:
+        prompt = build_validation_prompt(patch, verdict)
+        retries = config.max_retries if config else self._llm.max_retries
+        attempts = 1 + retries
+        last_error = ""
+
+        for _ in range(attempts):
+            try:
+                if self._llm.provider == "anthropic":
+                    raw_text = self._llm._call_anthropic(prompt)
+                else:
+                    raw_text = self._llm._call_openai(prompt)
+                return parse_validation_verdict_json(raw_text)
+            except Exception as exc:
+                last_error = str(exc)
+                continue
+
+        return ValidationVerdict(
+            passed=False,
+            accuracy_ok=False,
+            preservation_ok=False,
+            style_ok=False,
+            issues=(f"Validation failed due to malformed LLM response: {last_error}",),
         )
