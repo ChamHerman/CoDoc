@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from codoc.diff_parser import extract_code_deltas, filter_code_deltas, load_file_content
 from codoc.doc_parser import parse_markdown_text
@@ -52,32 +52,55 @@ def _resolve_head_section(
     original_sec: DocSection,
     head_files: dict[str, str] | None,
     repo_root: Path | None,
-) -> DocSection:
+) -> DocSection | None:
     rel_path = original_sec.file_path
-    content = load_file_content(
-        original_sec.file_path, head_files or {}, repo_root
-    )
-    if not content:
-        return original_sec
+    if head_files is not None and rel_path in head_files:
+        content = head_files[rel_path]
+        if not content:
+            return None
+        head_sections = parse_markdown_text(content, rel_path)
+        for head_sec in head_sections:
+            if (
+                head_sec.heading_path == original_sec.heading_path
+                or head_sec.section_id == original_sec.section_id
+            ):
+                return DocSection(
+                    section_id=original_sec.section_id,
+                    file_path=head_sec.file_path,
+                    heading_path=head_sec.heading_path,
+                    start_line=head_sec.start_line,
+                    end_line=head_sec.end_line,
+                    raw_content=head_sec.raw_content,
+                    content_hash=head_sec.content_hash,
+                    references=head_sec.references,
+                )
+        return None
 
-    head_sections = parse_markdown_text(content, rel_path)
-    for head_sec in head_sections:
-        if (
-            head_sec.heading_path == original_sec.heading_path
-            or head_sec.section_id == original_sec.section_id
-        ):
-            # ponytail: heading_path or section_id match; upgrade to AST fuzzy section alignment when doc diffing lands
-            return DocSection(
-                section_id=original_sec.section_id,
-                file_path=head_sec.file_path,
-                heading_path=head_sec.heading_path,
-                start_line=head_sec.start_line,
-                end_line=head_sec.end_line,
-                raw_content=head_sec.raw_content,
-                content_hash=head_sec.content_hash,
-                references=head_sec.references,
-            )
+    if repo_root is not None:
+        file_path = repo_root / rel_path
+        if not file_path.is_file():
+            return None
+        content = file_path.read_text(encoding="utf-8")
+        head_sections = parse_markdown_text(content, rel_path)
+        for head_sec in head_sections:
+            if (
+                head_sec.heading_path == original_sec.heading_path
+                or head_sec.section_id == original_sec.section_id
+            ):
+                return DocSection(
+                    section_id=original_sec.section_id,
+                    file_path=head_sec.file_path,
+                    heading_path=head_sec.heading_path,
+                    start_line=head_sec.start_line,
+                    end_line=head_sec.end_line,
+                    raw_content=head_sec.raw_content,
+                    content_hash=head_sec.content_hash,
+                    references=head_sec.references,
+                )
+        return None
+
     return original_sec
+
 
 def resolve_suspect_sections(
     deltas: list[CodeDelta],
@@ -85,6 +108,7 @@ def resolve_suspect_sections(
     max_suspects: int = 25,
     head_files: dict[str, str] | None = None,
     repo_root: Path | None = None,
+    metadata_out: dict[str, Any] | None = None,
 ) -> list[SuspectSection]:
     if not deltas:
         return []
@@ -126,6 +150,8 @@ def resolve_suspect_sections(
     for sec_id, d_list in suspect_deltas.items():
         base_sec = sections_by_id[sec_id]
         head_sec = _resolve_head_section(base_sec, head_files, repo_root)
+        if head_sec is None:
+            continue
         suspects.append(
             SuspectSection(
                 section=head_sec,
@@ -137,7 +163,13 @@ def resolve_suspect_sections(
 
     # Order candidates by descending link score
     suspects.sort(key=lambda s: s.score, reverse=True)
-    return suspects[:max_suspects]
+    total_count = len(suspects)
+    capped_suspects = suspects[:max_suspects]
+    if metadata_out is not None:
+        metadata_out["total_suspects"] = total_count
+        metadata_out["max_suspects"] = max_suspects
+        metadata_out["truncated"] = total_count > max_suspects
+    return capped_suspects
 
 
 def detect_stale_sections(
@@ -146,6 +178,7 @@ def detect_stale_sections(
     llm_client: StalenessVerifier,
     config: ChangeDetectorConfig | None = None,
     unlinked_symbols_out: list[CodeChunk] | None = None,
+    metadata_out: dict[str, Any] | None = None,
 ) -> list[StalenessVerdict]:
     cfg = config or ChangeDetectorConfig()
     deltas = extract_code_deltas(diff_context, ignore_globs=cfg.ignore_globs)
@@ -161,6 +194,7 @@ def detect_stale_sections(
         max_suspects=cfg.max_suspects,
         head_files=diff_context.head_files,
         repo_root=diff_context.repo_root,
+        metadata_out=metadata_out,
     )
 
     verdicts: list[StalenessVerdict] = []
