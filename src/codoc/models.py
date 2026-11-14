@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from fnmatch import fnmatch
 import hashlib
+import json
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterator, Literal
 
@@ -373,3 +374,36 @@ class RepairPlan:
 class RepairConfig:
     confidence_threshold: float = 0.80
     max_retries: int = 2
+
+
+@dataclass(frozen=True, slots=True)
+class RunReport:
+    verified_accurate: int = 0
+    auto_fixed: int = 0
+    flagged_for_review: int = 0
+    unlinked_new_symbols: int = 0
+    fix_pr_url: str | None = None
+    report_json: str = ""
+    summary_markdown: str = ""
+    review_flags: tuple[dict[str, Any], ...] = ()
+    unlinked_symbols_list: tuple[dict[str, Any], ...] = ()
+    auto_fix_items: tuple[dict[str, Any], ...] = ()
+    truncated_suspects: int = 0
+
+    def __post_init__(self) -> None:
+        if not self.report_json:
+            object.__setattr__(self, "report_json", json.dumps(self.to_dict()))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "verified_accurate": self.verified_accurate,
+            "auto_fixed": self.auto_fixed,
+            "flagged_for_review": self.flagged_for_review,
+            "unlinked_new_symbols": self.unlinked_new_symbols,
+            "fix_pr_url": self.fix_pr_url,
+            "summary_markdown": self.summary_markdown,
+            "review_flags": list(self.review_flags),
+            "unlinked_symbols_list": list(self.unlinked_symbols_list),
+            "auto_fix_items": list(self.auto_fix_items),
+            "truncated_suspects": self.truncated_suspects,
+        }
