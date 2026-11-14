@@ -169,6 +169,90 @@ def write_github_output(output_path: Path, outputs: dict[str, Any]) -> None:
     with open(output_path, "a", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
 
+def create_or_update_fix_pr(
+    ctx: ActionContext,
+    client: GitHubClient,
+    patched_files: dict[str, str],
+    pr_body: str,
+    pr_title: str = "docs: automated documentation fixes via CoDoc",
+) -> str | None:
+    if not patched_files:
+        return None
+
+    if ctx.is_fork:
+        print(f"::notice::CoDoc running on fork PR #{ctx.pr_number} ({ctx.head_repo}). Skipping auto_fix branch and PR creation.")
+        return None
+
+    if not ctx.config.github_token and isinstance(client, DefaultGitHubClient):
+        print("::notice::No GitHub token available. Skipping auto_fix branch and PR creation.")
+        return None
+
+    if ctx.pr_number is not None:
+        branch_name = f"codoc/fix-pr-{ctx.pr_number}"
+        target_base = ctx.head_ref
+    else:
+        branch_name = f"codoc/fix-pr-{ctx.head_ref}"
+        target_base = ctx.head_ref
+
+    base_branch = client.get_branch(ctx.repository, target_base)
+    base_sha = "HEAD"
+    if base_branch and isinstance(base_branch, dict) and "commit" in base_branch:
+        base_sha = base_branch["commit"].get("sha", "HEAD")
+
+    try:
+        client.create_or_update_branch(ctx.repository, branch_name, base_sha)
+    except Exception as exc:
+        print(f"::notice::Failed to create/update branch {branch_name}: {exc}")
+        return None
+
+    for file_path, content in patched_files.items():
+        try:
+            client.create_or_update_file(
+                ctx.repository,
+                branch_name,
+                file_path,
+                content,
+                f"docs: auto-fix {file_path}",
+            )
+        except Exception as exc:
+            print(f"::notice::Failed to push fix for {file_path}: {exc}")
+            return None
+
+    # Idempotent PR lookup
+    existing_pr = client.find_pull_request(ctx.repository, head=branch_name, base=target_base)
+    if existing_pr is not None:
+        pr_number = existing_pr["number"]
+        try:
+            updated = client.update_pull_request(ctx.repository, pr_number, title=pr_title, body=pr_body)
+            pr_url = updated.get("html_url") or f"https://github.com/{ctx.repository}/pull/{pr_number}"
+        except Exception as exc:
+            print(f"::notice::Failed to update existing PR #{pr_number}: {exc}")
+            pr_url = f"https://github.com/{ctx.repository}/pull/{pr_number}"
+    else:
+        try:
+            new_pr = client.create_pull_request(
+                ctx.repository,
+                title=pr_title,
+                body=pr_body,
+                head=branch_name,
+                base=target_base,
+            )
+            pr_number = new_pr["number"]
+            pr_url = new_pr.get("html_url") or f"https://github.com/{ctx.repository}/pull/{pr_number}"
+        except Exception as exc:
+            print(f"::notice::Failed to create fix PR: {exc}")
+            return None
+
+    if ctx.config.auto_merge:
+        try:
+            success = client.enable_auto_merge(ctx.repository, pr_number)
+            if not success:
+                print(f"::notice::Auto-merge could not be enabled on PR #{pr_number} (permission or repository settings restriction).")
+        except Exception as exc:
+            print(f"::notice::Auto-merge request failed on PR #{pr_number}: {exc}")
+
+    return pr_url
+
 
 def default_pipeline_fn(ctx: ActionContext) -> RunReport:
     """Stub pipeline for tracer bullet execution."""
