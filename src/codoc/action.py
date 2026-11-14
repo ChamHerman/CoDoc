@@ -169,6 +169,103 @@ def write_github_output(output_path: Path, outputs: dict[str, Any]) -> None:
     with open(output_path, "a", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
 
+def build_run_report_comment(
+    report: RunReport,
+    repo: str = "",
+    commit_sha: str = "",
+) -> str:
+    parts = ["<!-- codoc-report -->"]
+
+    if report.flagged_for_review > 0:
+        badge = "⚠️ **Action Required: Review Flags Found**"
+    elif report.auto_fixed > 0:
+        badge = "🛠️ **Auto-Fixes Available**"
+    else:
+        badge = "✅ **All Verified Accurate**"
+
+    parts.append(f"### CoDoc Documentation Check: {badge}\n")
+
+    parts.append("| Category | Count |")
+    parts.append("| :--- | :--- |")
+    parts.append(f"| Verified Accurate | {report.verified_accurate} |")
+    parts.append(f"| Auto-Fixed | {report.auto_fixed} |")
+    parts.append(f"| Flagged for Review | {report.flagged_for_review} |")
+    parts.append(f"| Unlinked New Symbols | {report.unlinked_new_symbols} |")
+    if report.truncated_suspects > 0:
+        parts.append(f"| Truncated Suspects | {report.truncated_suspects} |")
+    parts.append("")
+
+    if report.fix_pr_url:
+        parts.append(f"👉 **Automated fixes opened in:** [{report.fix_pr_url}]({report.fix_pr_url})\n")
+
+    if report.review_flags:
+        parts.append("### 🚩 Stale Sections Flagged for Manual Review\n")
+        for flag in report.review_flags:
+            file_path = flag.get("file_path", "")
+            heading_path = flag.get("heading_path", "Section")
+            line_start = flag.get("line_start", 1)
+            line_end = flag.get("line_end", line_start)
+            confidence = flag.get("confidence", 0.0)
+            diagnosis = flag.get("diagnosis", "Discrepancy detected between code and docs.")
+            diff = flag.get("suggested_diff") or flag.get("suggested_patch", "")
+            trigger = ", ".join(f"`{s}`" for s in flag.get("trigger_symbols", []))
+
+            if repo and commit_sha:
+                link = f"https://github.com/{repo}/blob/{commit_sha}/{file_path}#L{line_start}-L{line_end}"
+                title_link = f"[{file_path} > {heading_path}]({link})"
+            else:
+                title_link = f"`{file_path}` > **{heading_path}** (lines {line_start}–{line_end})"
+
+            parts.append("<details>")
+            parts.append(f"<summary><b>{heading_path}</b> in <code>{file_path}</code> (Confidence: {confidence:.0%})</summary>\n")
+            parts.append(f"- **Location:** {title_link}")
+            if trigger:
+                parts.append(f"- **Triggered by:** {trigger}")
+            parts.append(f"- **Diagnosis:** {diagnosis}\n")
+            if diff:
+                parts.append(f"**Suggested Diff:**\n\n{diff}\n")
+            parts.append("</details>\n")
+
+    if report.unlinked_symbols_list:
+        parts.append("### 📝 Needs New Documentation\n")
+        parts.append("The following newly added public code symbols have no matching documentation section:\n")
+        parts.append("| Symbol | Defined In | Line |")
+        parts.append("| :--- | :--- | :--- |")
+        for sym in report.unlinked_symbols_list:
+            symbol_name = sym.get("symbol_name", "")
+            fpath = sym.get("file_path", "")
+            lstart = sym.get("line_start", 1)
+            parts.append(f"| `{symbol_name}` | `{fpath}` | {lstart} |")
+        parts.append("")
+
+    return "\n".join(parts)
+
+
+def build_fix_pr_body(
+    report: RunReport,
+    trigger_pr_number: int | None = None,
+) -> str:
+    parts = ["## CoDoc Automated Documentation Fixes\n"]
+    if trigger_pr_number is not None:
+        parts.append(f"This PR applies automated documentation repairs triggered by PR #{trigger_pr_number}.\n")
+    else:
+        parts.append("This PR applies automated documentation repairs detected by CoDoc.\n")
+
+    parts.append("### Modified Sections\n")
+    if report.auto_fix_items:
+        for item in report.auto_fix_items:
+            fpath = item.get("file_path", "")
+            hpath = item.get("heading_path", "")
+            triggers = ", ".join(f"`{s}`" for s in item.get("trigger_symbols", []))
+            parts.append(f"- **`{fpath}`** > **{hpath}**")
+            if triggers:
+                parts.append(f"  - Triggered by changes to: {triggers}")
+    else:
+        parts.append("- Routine documentation updates.")
+
+    parts.append("\n---\n*Generated automatically by CoDoc.*")
+    return "\n".join(parts)
+
 def create_or_update_fix_pr(
     ctx: ActionContext,
     client: GitHubClient,
@@ -287,7 +384,9 @@ def run_action(
     # 4. Upsert PR comment if pull request and not fork
     if ctx.pr_number is not None and not ctx.is_fork:
         comment_body = report.summary_markdown
-        if "<!-- codoc-report -->" not in comment_body:
+        if not comment_body:
+            comment_body = build_run_report_comment(report, repo=ctx.repository, commit_sha=ctx.head_ref)
+        elif "<!-- codoc-report -->" not in comment_body:
             comment_body = f"<!-- codoc-report -->\n{comment_body}"
         try:
             client.upsert_pr_comment(ctx.repository, ctx.pr_number, comment_body)
@@ -311,7 +410,7 @@ def run_action(
         write_github_output(ctx.github_output_path, outputs)
 
     # 6. Policy gate
-    if ctx.config.fail_on_stale and (report.flagged_for_review > 0 or report.auto_fixed > 0):
+    if ctx.config.fail_on_stale and (report.flagged_for_review > 0 or (report.auto_fixed > 0 and not report.fix_pr_url)):
         print("::error::CoDoc check failed: stale documentation sections remain unresolved.")
         return 1
 
