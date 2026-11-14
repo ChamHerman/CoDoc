@@ -120,10 +120,6 @@ def parse_action_context(environ: dict[str, str] | None = None) -> ActionContext
         head_repo = head_data.get("repo", {}).get("full_name", repository)
         base_repo = base_data.get("repo", {}).get("full_name", repository)
         is_fork = bool(head_repo and base_repo and head_repo != base_repo)
-    elif event_name == "push":
-        ref = event_payload.get("ref", env.get("GITHUB_REF", ""))
-        head_ref = ref.removeprefix("refs/heads/")
-        base_ref = head_ref
     else:
         ref = event_payload.get("ref", env.get("GITHUB_REF", ""))
         head_ref = ref.removeprefix("refs/heads/")
@@ -381,6 +377,19 @@ def run_action(
     runner = pipeline_fn or default_pipeline_fn
     report = runner(ctx)
 
+    # 4. If auto-fixes exist without PR, attempt fix PR creation
+    if report.auto_fixed > 0 and not report.fix_pr_url and report.auto_fix_items:
+        patched: dict[str, str] = {
+            item["file_path"]: item["patched_content"]
+            for item in report.auto_fix_items
+            if "file_path" in item and "patched_content" in item
+        }
+        if patched:
+            pr_body = build_fix_pr_body(report, trigger_pr_number=ctx.pr_number)
+            fix_pr_url = create_or_update_fix_pr(ctx, client, patched_files=patched, pr_body=pr_body)
+            if fix_pr_url:
+                object.__setattr__(report, "fix_pr_url", fix_pr_url)
+
     # 4. Upsert PR comment if pull request and not fork
     if ctx.pr_number is not None and not ctx.is_fork:
         comment_body = report.summary_markdown
@@ -413,5 +422,13 @@ def run_action(
     if ctx.config.fail_on_stale and (report.flagged_for_review > 0 or (report.auto_fixed > 0 and not report.fix_pr_url)):
         print("::error::CoDoc check failed: stale documentation sections remain unresolved.")
         return 1
-
     return 0
+
+
+def main() -> None:
+    ctx = parse_action_context()
+    sys.exit(run_action(ctx))
+
+
+if __name__ == "__main__":
+    main()

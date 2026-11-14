@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 import json
 from typing import Any, Protocol
 import urllib.error
@@ -76,7 +77,19 @@ class GitHubClient(Protocol):
         ...
 
 
-class BaseGitHubClient:
+class BaseGitHubClient(ABC):
+    @abstractmethod
+    def list_comments(self, repo: str, pr_number: int) -> list[dict[str, Any]]:
+        ...
+
+    @abstractmethod
+    def create_comment(self, repo: str, pr_number: int, body: str) -> dict[str, Any]:
+        ...
+
+    @abstractmethod
+    def update_comment(self, repo: str, comment_id: int, body: str) -> dict[str, Any]:
+        ...
+
     def upsert_pr_comment(
         self,
         repo: str,
@@ -84,13 +97,11 @@ class BaseGitHubClient:
         body: str,
         marker: str = "<!-- codoc-report -->",
     ) -> dict[str, Any]:
-        comments = self.list_comments(repo, pr_number)  # type: ignore[attr-defined]
+        comments = self.list_comments(repo, pr_number)
         for c in comments:
             if marker in c.get("body", ""):
-                res: dict[str, Any] = self.update_comment(repo, c["id"], body)  # type: ignore[attr-defined]
-                return res
-        created: dict[str, Any] = self.create_comment(repo, pr_number, body)  # type: ignore[attr-defined]
-        return created
+                return self.update_comment(repo, c["id"], body)
+        return self.create_comment(repo, pr_number, body)
 
 
 class FakeGitHubClient(BaseGitHubClient):

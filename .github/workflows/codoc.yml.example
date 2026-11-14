@@ -1,0 +1,35 @@
+name: CoDoc Documentation Gate
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'docs/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'docs/**'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  codoc:
+    name: Check & Repair Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run CoDoc Action
+        uses: ./
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          llm_api_key: ${{ secrets.OPENAI_API_KEY }}
+          confidence_threshold: '0.80'
+          fail_on_stale: false

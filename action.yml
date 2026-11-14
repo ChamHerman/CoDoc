@@ -1,0 +1,71 @@
+name: 'CoDoc - Self-Healing Documentation Guard'
+description: 'Continuous documentation synchronization, staleness detection, and automated repair on pull requests.'
+author: 'CoDoc Maintainers'
+
+inputs:
+  github_token:
+    description: 'GitHub token with contents:write and pull-requests:write permissions.'
+    required: false
+    default: '${{ github.token }}'
+  llm_api_key:
+    description: 'API key for LLM verification and repair generation.'
+    required: false
+  llm_model:
+    description: 'Model name for LLM verification and repair.'
+    required: false
+    default: 'gpt-4o-mini'
+  confidence_threshold:
+    description: 'Minimum confidence score for automatic doc fix PR application.'
+    required: false
+    default: '0.80'
+  max_suspects:
+    description: 'Maximum suspect sections to evaluate per run.'
+    required: false
+    default: '25'
+  ignore_paths:
+    description: 'Comma-separated glob patterns for paths to exclude from inspection.'
+    required: false
+    default: 'tests/**,.github/**,migrations/**'
+  auto_merge:
+    description: 'Whether to request auto-merge on generated doc-fix pull requests.'
+    required: false
+    default: 'false'
+  fail_on_stale:
+    description: 'Whether to exit with a non-zero status code when stale documentation sections remain unresolved.'
+    required: false
+    default: 'false'
+  base_url:
+    description: 'Optional custom base URL for OpenAI-compatible LLM endpoints.'
+    required: false
+  embedding_api_key:
+    description: 'Optional API key for remote vector embedding provider.'
+    required: false
+  embedding_model:
+    description: 'Optional model name for remote vector embedding provider.'
+    required: false
+
+outputs:
+  verified_accurate:
+    description: 'Number of documentation sections verified accurate.'
+  auto_fixed:
+    description: 'Number of documentation sections repaired automatically.'
+  flagged_for_review:
+    description: 'Number of documentation sections flagged for manual review.'
+  unlinked_new_symbols:
+    description: 'Number of unlinked newly introduced public code symbols.'
+  stale_count:
+    description: 'Total number of stale sections identified.'
+  auto_fixed_count:
+    description: 'Count of auto-fixed sections.'
+  flagged_count:
+    description: 'Count of flagged sections.'
+  unlinked_new_count:
+    description: 'Count of unlinked new symbols.'
+  fix_pr_url:
+    description: 'URL of the opened auto-fix pull request, if created.'
+  report_json:
+    description: 'Complete RunReport payload formatted as JSON.'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
