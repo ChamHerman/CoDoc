@@ -37,6 +37,16 @@ from codoc.models import (
     StalenessVerdict,
     SuspectSection,
     ValidationVerdict,
+    EvaluationCase,
+    EvaluationResult,
+    EvaluationSummary,
+)
+from codoc.evaluator import (
+    compute_case_metrics,
+    summarize_evaluations,
+    load_evaluation_manifest,
+    evaluate_case,
+    evaluate_benchmark,
 )
 from codoc.verifier import (
     LLMStalenessVerifier,
@@ -112,4 +122,12 @@ __all__ = [
     "build_verification_prompt",
     "parse_staleness_verdict_json",
     "get_default_embedding_provider",
+    "EvaluationCase",
+    "EvaluationResult",
+    "EvaluationSummary",
+    "compute_case_metrics",
+    "summarize_evaluations",
+    "load_evaluation_manifest",
+    "evaluate_case",
+    "evaluate_benchmark",
 ]

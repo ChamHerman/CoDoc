@@ -11,6 +11,7 @@ from codoc.embeddings import (
     OpenAIEmbeddingProvider,
     get_default_embedding_provider,
 )
+from codoc.evaluator import evaluate_benchmark, load_evaluation_manifest
 from codoc.indexer import build_index
 from codoc.models import DEFAULT_IGNORE_GLOBS, IndexConfig
 
@@ -81,7 +82,44 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Run heuristic linking only without calling an embedding provider",
     )
 
+    eval_parser = subparsers.add_parser(
+        "evaluate",
+        help="Run evaluation benchmark against an EvaluationCase manifest.",
+    )
+    eval_parser.add_argument(
+        "--manifest",
+        type=Path,
+        required=True,
+        help="Path to evaluation manifest JSON",
+    )
+    eval_parser.add_argument(
+        "--output-json",
+        type=Path,
+        default=None,
+        help="Path to output evaluation summary JSON report",
+    )
+    eval_parser.add_argument(
+        "--output-markdown",
+        type=Path,
+        default=None,
+        help="Path to output evaluation summary Markdown report",
+    )
+
     args = parser.parse_args(argv)
+    if args.command == "evaluate":
+        cases = load_evaluation_manifest(args.manifest)
+        summary = evaluate_benchmark(cases)
+        md = summary.to_markdown()
+        if args.output_json is not None:
+            import json
+            args.output_json.parent.mkdir(parents=True, exist_ok=True)
+            args.output_json.write_text(json.dumps(summary.to_dict(), indent=2), encoding="utf-8")
+        if args.output_markdown is not None:
+            args.output_markdown.parent.mkdir(parents=True, exist_ok=True)
+            args.output_markdown.write_text(md, encoding="utf-8")
+        print(md)
+        return 0
+
     if args.command == "index":
         cfg = IndexConfig(
             ignore_globs=DEFAULT_IGNORE_GLOBS + tuple(args.ignore),

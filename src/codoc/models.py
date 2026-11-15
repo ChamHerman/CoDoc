@@ -407,3 +407,168 @@ class RunReport:
             "auto_fix_items": list(self.auto_fix_items),
             "truncated_suspects": self.truncated_suspects,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class EvaluationCase:
+    case_id: str
+    repo_ref: str
+    category: str
+    description: str = ""
+    base_commit: str = ""
+    head_commit: str = ""
+    patch: str = ""
+    patch_file: str = ""
+    expected_stale_sections: tuple[str, ...] = ()
+    expected_mode: RepairMode | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "case_id": self.case_id,
+            "repo_ref": self.repo_ref,
+            "category": self.category,
+            "description": self.description,
+            "base_commit": self.base_commit,
+            "head_commit": self.head_commit,
+            "patch": self.patch,
+            "patch_file": self.patch_file,
+            "expected_stale_sections": list(self.expected_stale_sections),
+            "expected_mode": self.expected_mode,
+            "metadata": dict(self.metadata),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> EvaluationCase:
+        expected_sections = data.get("expected_stale_sections", ())
+        if isinstance(expected_sections, list):
+            expected_tuple = tuple(expected_sections)
+        elif isinstance(expected_sections, tuple):
+            expected_tuple = expected_sections
+        else:
+            expected_tuple = (str(expected_sections),)
+
+        return cls(
+            case_id=data["case_id"],
+            repo_ref=data.get("repo_ref", ""),
+            category=data.get("category", "general"),
+            description=data.get("description", ""),
+            base_commit=data.get("base_commit", ""),
+            head_commit=data.get("head_commit", ""),
+            patch=data.get("patch", ""),
+            patch_file=data.get("patch_file", ""),
+            expected_stale_sections=expected_tuple,
+            expected_mode=data.get("expected_mode"),
+            metadata=dict(data.get("metadata", {})),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class EvaluationResult:
+    case_id: str
+    category: str
+    expected_stale_sections: tuple[str, ...]
+    predicted_stale_sections: tuple[str, ...]
+    true_positives: int
+    false_positives: int
+    false_negatives: int
+    precision: float
+    recall: float
+    f1: float
+    repair_mode_correct: bool | None = None
+    repair_validation_passed: bool | None = None
+    latency_seconds: float = 0.0
+    token_usage: dict[str, int] = field(default_factory=dict)
+    diagnostics: dict[str, Any] = field(default_factory=dict)
+    error: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "case_id": self.case_id,
+            "category": self.category,
+            "expected_stale_sections": list(self.expected_stale_sections),
+            "predicted_stale_sections": list(self.predicted_stale_sections),
+            "true_positives": self.true_positives,
+            "false_positives": self.false_positives,
+            "false_negatives": self.false_negatives,
+            "precision": self.precision,
+            "recall": self.recall,
+            "f1": self.f1,
+            "repair_mode_correct": self.repair_mode_correct,
+            "repair_validation_passed": self.repair_validation_passed,
+            "latency_seconds": self.latency_seconds,
+            "token_usage": dict(self.token_usage),
+            "diagnostics": dict(self.diagnostics),
+            "error": self.error,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class EvaluationSummary:
+    total_cases: int
+    positive_cases: int
+    negative_cases: int
+    total_true_positives: int
+    total_false_positives: int
+    total_false_negatives: int
+    precision: float
+    recall: float
+    f1: float
+    accuracy: float
+    false_positive_rate: float
+    repair_success_rate: float = 0.0
+    average_latency_seconds: float = 0.0
+    total_tokens: int = 0
+    case_results: tuple[EvaluationResult, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "total_cases": self.total_cases,
+            "positive_cases": self.positive_cases,
+            "negative_cases": self.negative_cases,
+            "total_true_positives": self.total_true_positives,
+            "total_false_positives": self.total_false_positives,
+            "total_false_negatives": self.total_false_negatives,
+            "precision": self.precision,
+            "recall": self.recall,
+            "f1": self.f1,
+            "accuracy": self.accuracy,
+            "false_positive_rate": self.false_positive_rate,
+            "repair_success_rate": self.repair_success_rate,
+            "average_latency_seconds": self.average_latency_seconds,
+            "total_tokens": self.total_tokens,
+            "case_results": [r.to_dict() for r in self.case_results],
+        }
+
+    def to_markdown(self) -> str:
+        lines = [
+            "# CoDoc Evaluation Benchmark Summary",
+            "",
+            "| Metric | Value |",
+            "| :--- | :--- |",
+            f"| Total Cases | {self.total_cases} |",
+            f"| Positive (Stale) Cases | {self.positive_cases} |",
+            f"| Negative (Control) Cases | {self.negative_cases} |",
+            f"| True Positives (TP) | {self.total_true_positives} |",
+            f"| False Positives (FP) | {self.total_false_positives} |",
+            f"| False Negatives (FN) | {self.total_false_negatives} |",
+            f"| **Precision** | **{self.precision:.1%}** |",
+            f"| **Recall** | **{self.recall:.1%}** |",
+            f"| **F1 Score** | **{self.f1:.1%}** |",
+            f"| **Exact Match Accuracy** | **{self.accuracy:.1%}** |",
+            f"| False Positive Rate | {self.false_positive_rate:.1%} |",
+            f"| Repair Success Rate | {self.repair_success_rate:.1%} |",
+            f"| Avg Latency | {self.average_latency_seconds:.2f}s |",
+            f"| Total Tokens | {self.total_tokens} |",
+            "",
+            "### Per-Case Results",
+            "",
+            "| Case ID | Category | Expected | Predicted | TP | FP | FN | P | R | F1 | Status |",
+            "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
+        ]
+        for r in self.case_results:
+            status = "✅ PASS" if (r.false_positives == 0 and r.false_negatives == 0) else "❌ FAIL"
+            lines.append(
+                f"| `{r.case_id}` | {r.category} | {len(r.expected_stale_sections)} | {len(r.predicted_stale_sections)} | {r.true_positives} | {r.false_positives} | {r.false_negatives} | {r.precision:.0%} | {r.recall:.0%} | {r.f1:.0%} | {status} |"
+            )
+        return "\n".join(lines)
