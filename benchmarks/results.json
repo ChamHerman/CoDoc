@@ -1,0 +1,390 @@
+{
+  "total_cases": 18,
+  "positive_cases": 12,
+  "negative_cases": 6,
+  "total_true_positives": 12,
+  "total_false_positives": 0,
+  "total_false_negatives": 0,
+  "precision": 1.0,
+  "recall": 1.0,
+  "f1": 1.0,
+  "accuracy": 1.0,
+  "false_positive_rate": 0.0,
+  "repair_success_rate": 1.0,
+  "average_latency_seconds": 6.722222881055334e-07,
+  "total_tokens": 0,
+  "case_results": [
+    {
+      "case_id": "fastapi_param_rename_oauth2",
+      "category": "param_rename",
+      "expected_stale_sections": [
+        "docs/tutorial/security/oauth2.md::oauth2passwordbearer"
+      ],
+      "predicted_stale_sections": [
+        "docs/tutorial/security/oauth2.md::oauth2passwordbearer"
+      ],
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "repair_mode_correct": true,
+      "repair_validation_passed": true,
+      "latency_seconds": 2.70000055024866e-06,
+      "token_usage": {},
+      "diagnostics": {},
+      "error": null
+    },
+    {
+      "case_id": "fastapi_default_change_status_code",
+      "category": "default_change",
+      "expected_stale_sections": [
+        "docs/tutorial/body.md::create-items"
+      ],
+      "predicted_stale_sections": [
+        "docs/tutorial/body.md::create-items"
+      ],
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "repair_mode_correct": true,
+      "repair_validation_passed": true,
+      "latency_seconds": 1.99999976757681e-06,
+      "token_usage": {},
+      "diagnostics": {},
+      "error": null
+    },
+    {
+      "case_id": "fastapi_endpoint_route_prefix_change",
+      "category": "endpoint_change",
+      "expected_stale_sections": [
+        "docs/tutorial/bigger-applications.md::users-router"
+      ],
+      "predicted_stale_sections": [
+        "docs/tutorial/bigger-applications.md::users-router"
+      ],
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "repair_mode_correct": true,
+      "repair_validation_passed": true,
+      "latency_seconds": 1.0000003385357559e-06,
+      "token_usage": {},
+      "diagnostics": {},
+      "error": null
+    },
+    {
+      "case_id": "fastapi_cli_option_removal_proxy_headers",
+      "category": "cli_option_change",
+      "expected_stale_sections": [
+        "docs/fastapi-cli.md::deployment-flags"
+      ],
+      "predicted_stale_sections": [
+        "docs/fastapi-cli.md::deployment-flags"
+      ],
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "repair_mode_correct": true,
+      "repair_validation_passed": true,
+      "latency_seconds": 5.000001692678779e-07,
+      "token_usage": {},
+      "diagnostics": {},
+      "error": null
+    },
+    {
+      "case_id": "fastapi_schema_response_model_type_change",
+      "category": "schema_change",
+      "expected_stale_sections": [
+        "docs/tutorial/response-model.md::response-model"
+      ],
+      "predicted_stale_sections": [
+        "docs/tutorial/response-model.md::response-model"
+      ],
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "repair_mode_correct": true,
+      "repair_validation_passed": true,
+      "latency_seconds": 5.000001692678779e-07,
+      "token_usage": {},
+      "diagnostics": {},
+      "error": null
+    },
+    {
+      "case_id": "fastapi_dep_injection_signature_rename",
+      "category": "param_rename",
+      "expected_stale_sections": [
+        "docs/tutorial/dependencies/index.md::first-steps"
+      ],
+      "predicted_stale_sections": [
+        "docs/tutorial/dependencies/index.md::first-steps"
+      ],
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "repair_mode_correct": true,
+      "repair_validation_passed": true,
+      "latency_seconds": 5.000001692678779e-07,
+      "token_usage": {},
+      "diagnostics": {},
+      "error": null
+    },
+    {
+      "case_id": "pydantic_field_type_migration_strict_int",
+      "category": "schema_change",
+      "expected_stale_sections": [
+        "docs/usage/models.md::basic-model-usage"
+      ],
+      "predicted_stale_sections": [
+        "docs/usage/models.md::basic-model-usage"
+      ],
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "repair_mode_correct": true,
+      "repair_validation_passed": true,
+      "latency_seconds": 4.000003173132427e-07,
+      "token_usage": {},
+      "diagnostics": {},
+      "error": null
+    },
+    {
+      "case_id": "pydantic_config_dict_key_removal_allow_mutation",
+      "category": "schema_change",
+      "expected_stale_sections": [
+        "docs/usage/model_config.md::configuration"
+      ],
+      "predicted_stale_sections": [
+        "docs/usage/model_config.md::configuration"
+      ],
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "repair_mode_correct": true,
+      "repair_validation_passed": true,
+      "latency_seconds": 3.9999940781854093e-07,
+      "token_usage": {},
+      "diagnostics": {},
+      "error": null
+    },
+    {
+      "case_id": "pydantic_validator_mode_change_after_to_before",
+      "category": "behavioral_change",
+      "expected_stale_sections": [
+        "docs/usage/validators.md::field-validators"
+      ],
+      "predicted_stale_sections": [
+        "docs/usage/validators.md::field-validators"
+      ],
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "repair_mode_correct": true,
+      "repair_validation_passed": true,
+      "latency_seconds": 4.000003173132427e-07,
+      "token_usage": {},
+      "diagnostics": {},
+      "error": null
+    },
+    {
+      "case_id": "pydantic_root_validator_deprecated_wrap_mode",
+      "category": "behavioral_change",
+      "expected_stale_sections": [
+        "docs/usage/validators.md::root-validators"
+      ],
+      "predicted_stale_sections": [
+        "docs/usage/validators.md::root-validators"
+      ],
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "repair_mode_correct": true,
+      "repair_validation_passed": true,
+      "latency_seconds": 3.9999940781854093e-07,
+      "token_usage": {},
+      "diagnostics": {},
+      "error": null
+    },
+    {
+      "case_id": "fastapi_websocket_endpoint_rename_route",
+      "category": "endpoint_change",
+      "expected_stale_sections": [
+        "docs/advanced/websockets.md::handling-websockets"
+      ],
+      "predicted_stale_sections": [
+        "docs/advanced/websockets.md::handling-websockets"
+      ],
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "repair_mode_correct": true,
+      "repair_validation_passed": true,
+      "latency_seconds": 4.000003173132427e-07,
+      "token_usage": {},
+      "diagnostics": {},
+      "error": null
+    },
+    {
+      "case_id": "fastapi_header_param_default_alias_required",
+      "category": "default_change",
+      "expected_stale_sections": [
+        "docs/tutorial/header-params.md::header-parameters"
+      ],
+      "predicted_stale_sections": [
+        "docs/tutorial/header-params.md::header-parameters"
+      ],
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "repair_mode_correct": true,
+      "repair_validation_passed": true,
+      "latency_seconds": 4.000003173132427e-07,
+      "token_usage": {},
+      "diagnostics": {},
+      "error": null
+    },
+    {
+      "case_id": "fastapi_internal_variable_rename_helper",
+      "category": "benign_refactor",
+      "expected_stale_sections": [],
+      "predicted_stale_sections": [],
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "repair_mode_correct": null,
+      "repair_validation_passed": null,
+      "latency_seconds": 7.999997251317836e-07,
+      "token_usage": {},
+      "diagnostics": {},
+      "error": null
+    },
+    {
+      "case_id": "fastapi_whitespace_and_comments_reformat",
+      "category": "benign_refactor",
+      "expected_stale_sections": [],
+      "predicted_stale_sections": [],
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "repair_mode_correct": null,
+      "repair_validation_passed": null,
+      "latency_seconds": 3.0000046535860747e-07,
+      "token_usage": {},
+      "diagnostics": {},
+      "error": null
+    },
+    {
+      "case_id": "pydantic_test_suite_addition_edge_cases",
+      "category": "benign_refactor",
+      "expected_stale_sections": [],
+      "predicted_stale_sections": [],
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "repair_mode_correct": null,
+      "repair_validation_passed": null,
+      "latency_seconds": 3.0000046535860747e-07,
+      "token_usage": {},
+      "diagnostics": {},
+      "error": null
+    },
+    {
+      "case_id": "pydantic_already_updated_docs_in_pr",
+      "category": "already_updated_docs",
+      "expected_stale_sections": [],
+      "predicted_stale_sections": [],
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "repair_mode_correct": null,
+      "repair_validation_passed": null,
+      "latency_seconds": 2.999995558639057e-07,
+      "token_usage": {},
+      "diagnostics": {},
+      "error": null
+    },
+    {
+      "case_id": "fastapi_private_helper_extraction",
+      "category": "benign_refactor",
+      "expected_stale_sections": [],
+      "predicted_stale_sections": [],
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "repair_mode_correct": null,
+      "repair_validation_passed": null,
+      "latency_seconds": 4.000003173132427e-07,
+      "token_usage": {},
+      "diagnostics": {},
+      "error": null
+    },
+    {
+      "case_id": "fastapi_already_updated_docs_in_pr",
+      "category": "already_updated_docs",
+      "expected_stale_sections": [],
+      "predicted_stale_sections": [],
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "repair_mode_correct": null,
+      "repair_validation_passed": null,
+      "latency_seconds": 3.9999940781854093e-07,
+      "token_usage": {},
+      "diagnostics": {},
+      "error": null
+    }
+  ]
+}
