@@ -11,7 +11,11 @@ from codoc.embeddings import (
     OpenAIEmbeddingProvider,
     get_default_embedding_provider,
 )
-from codoc.evaluator import evaluate_benchmark, load_evaluation_manifest
+from codoc.evaluator import (
+    compare_benchmark_summaries,
+    evaluate_benchmark,
+    load_evaluation_manifest,
+)
 from codoc.indexer import build_index
 from codoc.models import DEFAULT_IGNORE_GLOBS, IndexConfig
 
@@ -104,11 +108,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=None,
         help="Path to output evaluation summary Markdown report",
     )
+    eval_parser.add_argument(
+        "--diff-against",
+        type=Path,
+        default=None,
+        help="Path to baseline evaluation summary JSON to diff against",
+    )
 
     args = parser.parse_args(argv)
     if args.command == "evaluate":
         cases = load_evaluation_manifest(args.manifest)
         summary = evaluate_benchmark(cases)
+        if args.diff_against is not None:
+            import json
+            baseline_data = json.loads(args.diff_against.read_text(encoding="utf-8"))
+            diff_report = compare_benchmark_summaries(baseline_data, summary)
+            md = diff_report.to_markdown()
+            if args.output_json is not None:
+                args.output_json.parent.mkdir(parents=True, exist_ok=True)
+                args.output_json.write_text(json.dumps(diff_report.to_dict(), indent=2), encoding="utf-8")
+            if args.output_markdown is not None:
+                args.output_markdown.parent.mkdir(parents=True, exist_ok=True)
+                args.output_markdown.write_text(md, encoding="utf-8")
+            print(md)
+            return 0
+
         md = summary.to_markdown()
         if args.output_json is not None:
             import json

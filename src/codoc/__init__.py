@@ -42,11 +42,15 @@ from codoc.models import (
     EvaluationSummary,
 )
 from codoc.evaluator import (
+    BenchmarkDiffReport,
+    attribute_case_failures,
+    compare_benchmark_summaries,
     compute_case_metrics,
-    summarize_evaluations,
-    load_evaluation_manifest,
-    evaluate_case,
+    estimate_llm_cost,
     evaluate_benchmark,
+    evaluate_case,
+    load_evaluation_manifest,
+    summarize_evaluations,
 )
 from codoc.verifier import (
     LLMStalenessVerifier,
@@ -130,4 +134,8 @@ __all__ = [
     "load_evaluation_manifest",
     "evaluate_case",
     "evaluate_benchmark",
+    "estimate_llm_cost",
+    "attribute_case_failures",
+    "compare_benchmark_summaries",
+    "BenchmarkDiffReport",
 ]
