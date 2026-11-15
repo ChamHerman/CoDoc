@@ -40,6 +40,7 @@ from codoc.models import (
     EvaluationCase,
     EvaluationResult,
     EvaluationSummary,
+    BenchmarkDiffReport,
 )
 from codoc.evaluator import (
     BenchmarkDiffReport,

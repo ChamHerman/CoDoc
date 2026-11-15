@@ -54,7 +54,7 @@ def test_compute_case_metrics_negative_control_false_positive() -> None:
     assert fp == 1
     assert fn == 0
     assert prec == 0.0
-    assert rec == 1.0
+    assert rec == 0.0
     assert f1 == 0.0
 
 

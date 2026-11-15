@@ -15,7 +15,7 @@
 | False Positive Rate | 0.0% |
 | Repair Success Rate | 100.0% |
 | Avg Latency | 0.00s |
-| Total Tokens | 0 |
+| Total Tokens | 0 (prompt: 0, completion: 0) |
 
 ### Per-Case Results
 

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Protocol, Sequence
 
 from codoc.embeddings import (
     EmbeddingProvider,
@@ -18,6 +19,20 @@ from codoc.evaluator import (
 )
 from codoc.indexer import build_index
 from codoc.models import DEFAULT_IGNORE_GLOBS, IndexConfig
+
+
+def _write_report_files(
+    data_dict: dict[str, Any],
+    markdown_text: str,
+    output_json: Path | None,
+    output_markdown: Path | None,
+) -> None:
+    if output_json is not None:
+        output_json.parent.mkdir(parents=True, exist_ok=True)
+        output_json.write_text(json.dumps(data_dict, indent=2), encoding="utf-8")
+    if output_markdown is not None:
+        output_markdown.parent.mkdir(parents=True, exist_ok=True)
+        output_markdown.write_text(markdown_text, encoding="utf-8")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -120,27 +135,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         cases = load_evaluation_manifest(args.manifest)
         summary = evaluate_benchmark(cases)
         if args.diff_against is not None:
-            import json
             baseline_data = json.loads(args.diff_against.read_text(encoding="utf-8"))
             diff_report = compare_benchmark_summaries(baseline_data, summary)
             md = diff_report.to_markdown()
-            if args.output_json is not None:
-                args.output_json.parent.mkdir(parents=True, exist_ok=True)
-                args.output_json.write_text(json.dumps(diff_report.to_dict(), indent=2), encoding="utf-8")
-            if args.output_markdown is not None:
-                args.output_markdown.parent.mkdir(parents=True, exist_ok=True)
-                args.output_markdown.write_text(md, encoding="utf-8")
+            _write_report_files(diff_report.to_dict(), md, args.output_json, args.output_markdown)
             print(md)
             return 0
 
         md = summary.to_markdown()
-        if args.output_json is not None:
-            import json
-            args.output_json.parent.mkdir(parents=True, exist_ok=True)
-            args.output_json.write_text(json.dumps(summary.to_dict(), indent=2), encoding="utf-8")
-        if args.output_markdown is not None:
-            args.output_markdown.parent.mkdir(parents=True, exist_ok=True)
-            args.output_markdown.write_text(md, encoding="utf-8")
+        _write_report_files(summary.to_dict(), md, args.output_json, args.output_markdown)
         print(md)
         return 0
 

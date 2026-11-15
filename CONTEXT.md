@@ -18,3 +18,6 @@ Canonical vocabulary for specs, tickets, code, and tests.
 - **RepairMode**: Routing decision for a `RepairPatch`: `auto_fix` (applied to a doc-fix PR branch when confidence >= threshold, change is simple, and validation passes) or `review_flag` (posted as a PR comment with diagnosis and suggested draft snippet).
 - **RunReport**: Final summary of a CoDoc pipeline execution (`verified_accurate`, `auto_fixed`, `flagged_for_review`, `unlinked_new_symbols`, PR link, and evaluation metrics).
 - **EvaluationCase**: A ground-truth benchmark entry (repo revision pair + deliberate doc-breaking change + expected stale `DocSection` IDs) used in Phase 5 to measure TP, FP, FN, precision, recall, and correction quality.
+- **EvaluationResult**: Per-case metric and diagnostics outcome (`true_positives`, `false_positives`, `false_negatives`, `precision`, `recall`, `f1`, latency, token counts, and failure attributions).
+- **EvaluationSummary**: Aggregated benchmark metrics across an entire evaluation manifest, reporting micro-precision, micro-recall, F1, exact match accuracy, false positive rate, repair success rate, and latency/token totals.
+- **BenchmarkDiffReport**: Comparative regression analysis between a baseline and candidate `EvaluationSummary`, highlighting delta precision/recall, cost, latency, and specific regression or improvement cases.

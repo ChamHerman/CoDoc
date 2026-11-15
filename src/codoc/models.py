@@ -502,6 +502,27 @@ class EvaluationResult:
             "error": self.error,
         }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> EvaluationResult:
+        return cls(
+            case_id=data["case_id"],
+            category=data.get("category", "general"),
+            expected_stale_sections=tuple(data.get("expected_stale_sections", ())),
+            predicted_stale_sections=tuple(data.get("predicted_stale_sections", ())),
+            true_positives=data.get("true_positives", 0),
+            false_positives=data.get("false_positives", 0),
+            false_negatives=data.get("false_negatives", 0),
+            precision=data.get("precision", 0.0),
+            recall=data.get("recall", 0.0),
+            f1=data.get("f1", 0.0),
+            repair_mode_correct=data.get("repair_mode_correct"),
+            repair_validation_passed=data.get("repair_validation_passed"),
+            latency_seconds=data.get("latency_seconds", 0.0),
+            token_usage=dict(data.get("token_usage", {})),
+            diagnostics=dict(data.get("diagnostics", {})),
+            error=data.get("error"),
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class EvaluationSummary:
@@ -519,6 +540,8 @@ class EvaluationSummary:
     repair_success_rate: float = 0.0
     average_latency_seconds: float = 0.0
     total_tokens: int = 0
+    total_prompt_tokens: int = 0
+    total_completion_tokens: int = 0
     case_results: tuple[EvaluationResult, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
@@ -537,8 +560,33 @@ class EvaluationSummary:
             "repair_success_rate": self.repair_success_rate,
             "average_latency_seconds": self.average_latency_seconds,
             "total_tokens": self.total_tokens,
+            "total_prompt_tokens": self.total_prompt_tokens,
+            "total_completion_tokens": self.total_completion_tokens,
             "case_results": [r.to_dict() for r in self.case_results],
         }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> EvaluationSummary:
+        cases = [EvaluationResult.from_dict(r) for r in data.get("case_results", [])]
+        return cls(
+            total_cases=data.get("total_cases", len(cases)),
+            positive_cases=data.get("positive_cases", 0),
+            negative_cases=data.get("negative_cases", 0),
+            total_true_positives=data.get("total_true_positives", 0),
+            total_false_positives=data.get("total_false_positives", 0),
+            total_false_negatives=data.get("total_false_negatives", 0),
+            precision=data.get("precision", 0.0),
+            recall=data.get("recall", 0.0),
+            f1=data.get("f1", 0.0),
+            accuracy=data.get("accuracy", 0.0),
+            false_positive_rate=data.get("false_positive_rate", 0.0),
+            repair_success_rate=data.get("repair_success_rate", 0.0),
+            average_latency_seconds=data.get("average_latency_seconds", 0.0),
+            total_tokens=data.get("total_tokens", 0),
+            total_prompt_tokens=data.get("total_prompt_tokens", 0),
+            total_completion_tokens=data.get("total_completion_tokens", 0),
+            case_results=tuple(cases),
+        )
 
     def to_markdown(self) -> str:
         lines = [
@@ -559,7 +607,7 @@ class EvaluationSummary:
             f"| False Positive Rate | {self.false_positive_rate:.1%} |",
             f"| Repair Success Rate | {self.repair_success_rate:.1%} |",
             f"| Avg Latency | {self.average_latency_seconds:.2f}s |",
-            f"| Total Tokens | {self.total_tokens} |",
+            f"| Total Tokens | {self.total_tokens} (prompt: {self.total_prompt_tokens}, completion: {self.total_completion_tokens}) |",
             "",
             "### Per-Case Results",
             "",
@@ -571,4 +619,79 @@ class EvaluationSummary:
             lines.append(
                 f"| `{r.case_id}` | {r.category} | {len(r.expected_stale_sections)} | {len(r.predicted_stale_sections)} | {r.true_positives} | {r.false_positives} | {r.false_negatives} | {r.precision:.0%} | {r.recall:.0%} | {r.f1:.0%} | {status} |"
             )
+        return "\n".join(lines)
+
+
+@dataclass(frozen=True, slots=True)
+class BenchmarkDiffReport:
+    baseline_summary: EvaluationSummary
+    candidate_summary: EvaluationSummary
+    delta_precision: float
+    delta_recall: float
+    delta_f1: float
+    delta_accuracy: float
+    delta_false_positive_rate: float
+    delta_latency_seconds: float
+    delta_tokens: int
+    delta_cost_usd: float
+    regressions: tuple[str, ...]
+    improvements: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "baseline": self.baseline_summary.to_dict(),
+            "candidate": self.candidate_summary.to_dict(),
+            "delta_precision": self.delta_precision,
+            "delta_recall": self.delta_recall,
+            "delta_f1": self.delta_f1,
+            "delta_accuracy": self.delta_accuracy,
+            "delta_false_positive_rate": self.delta_false_positive_rate,
+            "delta_latency_seconds": self.delta_latency_seconds,
+            "delta_tokens": self.delta_tokens,
+            "delta_cost_usd": self.delta_cost_usd,
+            "regressions": list(self.regressions),
+            "improvements": list(self.improvements),
+        }
+
+    def to_markdown(self) -> str:
+        def _delta_badge(delta: float, higher_is_better: bool = True) -> str:
+            if abs(delta) < 1e-4:
+                return "⚪ Neutral"
+            is_good = (delta > 0) if higher_is_better else (delta < 0)
+            sign = "+" if delta > 0 else ""
+            prefix = "🟢" if is_good else "🔴"
+            return f"{prefix} {sign}{delta:.1%}"
+
+        lines = [
+            "## Benchmark Regression & Comparison Report",
+            "",
+            "| Metric | Baseline | Candidate | Delta |",
+            "| :--- | :--- | :--- | :--- |",
+            f"| **Precision** | {self.baseline_summary.precision:.1%} | {self.candidate_summary.precision:.1%} | {_delta_badge(self.delta_precision, True)} |",
+            f"| **Recall** | {self.baseline_summary.recall:.1%} | {self.candidate_summary.recall:.1%} | {_delta_badge(self.delta_recall, True)} |",
+            f"| **F1 Score** | {self.baseline_summary.f1:.1%} | {self.candidate_summary.f1:.1%} | {_delta_badge(self.delta_f1, True)} |",
+            f"| **Exact Match Accuracy** | {self.baseline_summary.accuracy:.1%} | {self.candidate_summary.accuracy:.1%} | {_delta_badge(self.delta_accuracy, True)} |",
+            f"| False Positive Rate | {self.baseline_summary.false_positive_rate:.1%} | {self.candidate_summary.false_positive_rate:.1%} | {_delta_badge(self.delta_false_positive_rate, False)} |",
+            f"| Avg Latency | {self.baseline_summary.average_latency_seconds:.2f}s | {self.candidate_summary.average_latency_seconds:.2f}s | {self.delta_latency_seconds:+.2f}s |",
+            f"| Total Tokens | {self.baseline_summary.total_tokens} | {self.candidate_summary.total_tokens} | {self.delta_tokens:+d} |",
+            f"| Estimated Delta Cost | — | — | ${self.delta_cost_usd:+.4f} |",
+            "",
+        ]
+
+        if self.regressions:
+            lines.append(f"### ⚠️ Regressions ({len(self.regressions)})\n")
+            for reg in self.regressions:
+                lines.append(f"- 🔴 `{reg}`: Regression detected against baseline.")
+            lines.append("")
+        else:
+            lines.append("### ✅ Regressions (0)\nNo accuracy regressions detected.\n")
+
+        if self.improvements:
+            lines.append(f"### 🚀 Improvements ({len(self.improvements)})\n")
+            for imp in self.improvements:
+                lines.append(f"- 🟢 `{imp}`: Passed in candidate after failing in baseline.")
+            lines.append("")
+        else:
+            lines.append("### Improvements (0)\n")
+
         return "\n".join(lines)

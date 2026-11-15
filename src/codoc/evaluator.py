@@ -1,23 +1,34 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import json
 from pathlib import Path
 import time
 from typing import Any, Callable, Iterable, Sequence
 
 from codoc.models import (
+    BenchmarkDiffReport,
     EvaluationCase,
     EvaluationResult,
     EvaluationSummary,
     RepairMode,
 )
 
+__all__ = [
+    "BenchmarkDiffReport",
+    "attribute_case_failures",
+    "compare_benchmark_summaries",
+    "compute_case_metrics",
+    "default_case_runner",
+    "estimate_llm_cost",
+    "evaluate_benchmark",
+    "evaluate_case",
+    "load_evaluation_manifest",
+    "summarize_evaluations",
+]
+
 MODEL_COSTS_PER_MILLION: dict[str, dict[str, float]] = {
     "gpt-4o-mini": {"prompt": 0.15, "completion": 0.60},
     "gpt-4o": {"prompt": 2.50, "completion": 10.00},
-    "claude-3-5-sonnet": {"prompt": 3.00, "completion": 15.00},
-    "claude-3-haiku": {"prompt": 0.25, "completion": 1.25},
 }
 
 
@@ -66,7 +77,6 @@ def attribute_case_failures(
         })
 
     for fp in false_positives:
-        verifier_verdicts = hints.get("verifier_verdicts", {})
         noisy_links = hints.get("noisy_embeddings", [])
         if fp in noisy_links:
             attr = "heuristic_link_noise"
@@ -84,152 +94,49 @@ def attribute_case_failures(
     return attributions
 
 
-@dataclass(frozen=True, slots=True)
-class BenchmarkDiffReport:
-    baseline_summary: EvaluationSummary
-    candidate_summary: EvaluationSummary
-    delta_precision: float
-    delta_recall: float
-    delta_f1: float
-    delta_accuracy: float
-    delta_false_positive_rate: float
-    delta_latency_seconds: float
-    delta_tokens: int
-    delta_cost_usd: float
-    regressions: tuple[str, ...]
-    improvements: tuple[str, ...]
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "baseline": self.baseline_summary.to_dict(),
-            "candidate": self.candidate_summary.to_dict(),
-            "delta_precision": self.delta_precision,
-            "delta_recall": self.delta_recall,
-            "delta_f1": self.delta_f1,
-            "delta_accuracy": self.delta_accuracy,
-            "delta_false_positive_rate": self.delta_false_positive_rate,
-            "delta_latency_seconds": self.delta_latency_seconds,
-            "delta_tokens": self.delta_tokens,
-            "delta_cost_usd": self.delta_cost_usd,
-            "regressions": list(self.regressions),
-            "improvements": list(self.improvements),
-        }
-
-    def to_markdown(self) -> str:
-        def _delta_badge(delta: float, higher_is_better: bool = True) -> str:
-            if abs(delta) < 1e-4:
-                return "⚪ Neutral"
-            is_good = (delta > 0) if higher_is_better else (delta < 0)
-            sign = "+" if delta > 0 else ""
-            prefix = "🟢" if is_good else "🔴"
-            return f"{prefix} {sign}{delta:.1%}"
-
-        lines = [
-            "## Benchmark Regression & Comparison Report",
-            "",
-            "| Metric | Baseline | Candidate | Delta |",
-            "| :--- | :--- | :--- | :--- |",
-            f"| **Precision** | {self.baseline_summary.precision:.1%} | {self.candidate_summary.precision:.1%} | {_delta_badge(self.delta_precision, True)} |",
-            f"| **Recall** | {self.baseline_summary.recall:.1%} | {self.candidate_summary.recall:.1%} | {_delta_badge(self.delta_recall, True)} |",
-            f"| **F1 Score** | {self.baseline_summary.f1:.1%} | {self.candidate_summary.f1:.1%} | {_delta_badge(self.delta_f1, True)} |",
-            f"| **Exact Match Accuracy** | {self.baseline_summary.accuracy:.1%} | {self.candidate_summary.accuracy:.1%} | {_delta_badge(self.delta_accuracy, True)} |",
-            f"| False Positive Rate | {self.baseline_summary.false_positive_rate:.1%} | {self.candidate_summary.false_positive_rate:.1%} | {_delta_badge(self.delta_false_positive_rate, False)} |",
-            f"| Avg Latency | {self.baseline_summary.average_latency_seconds:.2f}s | {self.candidate_summary.average_latency_seconds:.2f}s | {self.delta_latency_seconds:+.2f}s |",
-            f"| Total Tokens | {self.baseline_summary.total_tokens} | {self.candidate_summary.total_tokens} | {self.delta_tokens:+d} |",
-            f"| Estimated Cost | ${estimate_llm_cost(self.baseline_summary.total_tokens // 2, self.baseline_summary.total_tokens // 2):.4f} | ${estimate_llm_cost(self.candidate_summary.total_tokens // 2, self.candidate_summary.total_tokens // 2):.4f} | ${self.delta_cost_usd:+.4f} |",
-            "",
-        ]
-
-        if self.regressions:
-            lines.append(f"### ⚠️ Regressions ({len(self.regressions)})\n")
-            for reg in self.regressions:
-                lines.append(f"- 🔴 `{reg}`: Regression detected against baseline.")
-            lines.append("")
-        else:
-            lines.append("### ✅ Regressions (0)\nNo accuracy regressions detected.\n")
-
-        if self.improvements:
-            lines.append(f"### 🚀 Improvements ({len(self.improvements)})\n")
-            for imp in self.improvements:
-                lines.append(f"- 🟢 `{imp}`: Passed in candidate after failing in baseline.")
-            lines.append("")
-        else:
-            lines.append("### Improvements (0)\n")
-
-        return "\n".join(lines)
-
-
 def _ensure_summary(val: EvaluationSummary | dict[str, Any]) -> EvaluationSummary:
     if isinstance(val, EvaluationSummary):
         return val
-    case_results = [
-        EvaluationResult(
-            case_id=r["case_id"],
-            category=r.get("category", "general"),
-            expected_stale_sections=tuple(r.get("expected_stale_sections", ())),
-            predicted_stale_sections=tuple(r.get("predicted_stale_sections", ())),
-            true_positives=r.get("true_positives", 0),
-            false_positives=r.get("false_positives", 0),
-            false_negatives=r.get("false_negatives", 0),
-            precision=r.get("precision", 0.0),
-            recall=r.get("recall", 0.0),
-            f1=r.get("f1", 0.0),
-            repair_mode_correct=r.get("repair_mode_correct"),
-            repair_validation_passed=r.get("repair_validation_passed"),
-            latency_seconds=r.get("latency_seconds", 0.0),
-            token_usage=r.get("token_usage", {}),
-            diagnostics=r.get("diagnostics", {}),
-            error=r.get("error"),
-        )
-        for r in val.get("case_results", [])
-    ]
-    return EvaluationSummary(
-        total_cases=val.get("total_cases", len(case_results)),
-        positive_cases=val.get("positive_cases", 0),
-        negative_cases=val.get("negative_cases", 0),
-        total_true_positives=val.get("total_true_positives", 0),
-        total_false_positives=val.get("total_false_positives", 0),
-        total_false_negatives=val.get("total_false_negatives", 0),
-        precision=val.get("precision", 0.0),
-        recall=val.get("recall", 0.0),
-        f1=val.get("f1", 0.0),
-        accuracy=val.get("accuracy", 0.0),
-        false_positive_rate=val.get("false_positive_rate", 0.0),
-        repair_success_rate=val.get("repair_success_rate", 0.0),
-        average_latency_seconds=val.get("average_latency_seconds", 0.0),
-        total_tokens=val.get("total_tokens", 0),
-        case_results=tuple(case_results),
-    )
+    return EvaluationSummary.from_dict(val)
 
 
 def compare_benchmark_summaries(
     baseline: EvaluationSummary | dict[str, Any],
     candidate: EvaluationSummary | dict[str, Any],
 ) -> BenchmarkDiffReport:
-    b = _ensure_summary(baseline)
-    c = _ensure_summary(candidate)
+    base_summary = _ensure_summary(baseline)
+    cand_summary = _ensure_summary(candidate)
 
-    d_prec = c.precision - b.precision
-    d_rec = c.recall - b.recall
-    d_f1 = c.f1 - b.f1
-    d_acc = c.accuracy - b.accuracy
-    d_fpr = c.false_positive_rate - b.false_positive_rate
-    d_lat = c.average_latency_seconds - b.average_latency_seconds
-    d_tok = c.total_tokens - b.total_tokens
+    delta_precision = cand_summary.precision - base_summary.precision
+    delta_recall = cand_summary.recall - base_summary.recall
+    delta_f1 = cand_summary.f1 - base_summary.f1
+    delta_accuracy = cand_summary.accuracy - base_summary.accuracy
+    delta_fpr = cand_summary.false_positive_rate - base_summary.false_positive_rate
+    delta_latency = cand_summary.average_latency_seconds - base_summary.average_latency_seconds
+    delta_tokens = cand_summary.total_tokens - base_summary.total_tokens
 
-    b_cost = estimate_llm_cost(b.total_tokens // 2, b.total_tokens // 2)
-    c_cost = estimate_llm_cost(c.total_tokens // 2, c.total_tokens // 2)
-    d_cost = c_cost - b_cost
+    # Compute exact cost from prompt and completion token counts when available
+    if base_summary.total_prompt_tokens > 0 or base_summary.total_completion_tokens > 0:
+        base_cost = estimate_llm_cost(base_summary.total_prompt_tokens, base_summary.total_completion_tokens)
+    else:
+        base_cost = estimate_llm_cost(base_summary.total_tokens // 2, base_summary.total_tokens // 2)
 
-    b_cases = {r.case_id: r for r in b.case_results}
-    c_cases = {r.case_id: r for r in c.case_results}
+    if cand_summary.total_prompt_tokens > 0 or cand_summary.total_completion_tokens > 0:
+        cand_cost = estimate_llm_cost(cand_summary.total_prompt_tokens, cand_summary.total_completion_tokens)
+    else:
+        cand_cost = estimate_llm_cost(cand_summary.total_tokens // 2, cand_summary.total_tokens // 2)
+
+    delta_cost = cand_cost - base_cost
+
+    base_cases = {r.case_id: r for r in base_summary.case_results}
+    cand_cases = {r.case_id: r for r in cand_summary.case_results}
 
     regressions: list[str] = []
     improvements: list[str] = []
 
-    for case_id, c_res in c_cases.items():
-        if case_id in b_cases:
-            b_res = b_cases[case_id]
+    for case_id, c_res in cand_cases.items():
+        if case_id in base_cases:
+            b_res = base_cases[case_id]
             b_pass = (b_res.false_positives == 0 and b_res.false_negatives == 0)
             c_pass = (c_res.false_positives == 0 and c_res.false_negatives == 0)
             if b_pass and not c_pass:
@@ -238,16 +145,16 @@ def compare_benchmark_summaries(
                 improvements.append(case_id)
 
     return BenchmarkDiffReport(
-        baseline_summary=b,
-        candidate_summary=c,
-        delta_precision=d_prec,
-        delta_recall=d_rec,
-        delta_f1=d_f1,
-        delta_accuracy=d_acc,
-        delta_false_positive_rate=d_fpr,
-        delta_latency_seconds=d_lat,
-        delta_tokens=d_tok,
-        delta_cost_usd=d_cost,
+        baseline_summary=base_summary,
+        candidate_summary=cand_summary,
+        delta_precision=delta_precision,
+        delta_recall=delta_recall,
+        delta_f1=delta_f1,
+        delta_accuracy=delta_accuracy,
+        delta_false_positive_rate=delta_fpr,
+        delta_latency_seconds=delta_latency,
+        delta_tokens=delta_tokens,
+        delta_cost_usd=delta_cost,
         regressions=tuple(regressions),
         improvements=tuple(improvements),
     )
@@ -275,9 +182,9 @@ def compute_case_metrics(
             recall = 1.0
             f1 = 1.0
         else:
-            # False alarm on clean code/docs
+            # False alarm on clean code/docs: 0 precision, 0 recall, 0 F1
             precision = 0.0
-            recall = 1.0
+            recall = 0.0
             f1 = 0.0
     else:
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
@@ -305,6 +212,8 @@ def summarize_evaluations(results: Sequence[EvaluationResult]) -> EvaluationSumm
             repair_success_rate=0.0,
             average_latency_seconds=0.0,
             total_tokens=0,
+            total_prompt_tokens=0,
+            total_completion_tokens=0,
             case_results=(),
         )
 
@@ -349,6 +258,8 @@ def summarize_evaluations(results: Sequence[EvaluationResult]) -> EvaluationSumm
         repair_success_rate = 0.0
 
     avg_latency = sum(r.latency_seconds for r in results) / total_cases
+    total_prompt_tokens = sum(r.token_usage.get("prompt_tokens", 0) for r in results)
+    total_completion_tokens = sum(r.token_usage.get("completion_tokens", 0) for r in results)
     total_tokens = sum(sum(r.token_usage.values()) for r in results)
 
     return EvaluationSummary(
@@ -366,6 +277,8 @@ def summarize_evaluations(results: Sequence[EvaluationResult]) -> EvaluationSumm
         repair_success_rate=repair_success_rate,
         average_latency_seconds=avg_latency,
         total_tokens=total_tokens,
+        total_prompt_tokens=total_prompt_tokens,
+        total_completion_tokens=total_completion_tokens,
         case_results=tuple(results),
     )
 
