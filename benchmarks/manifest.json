@@ -1,0 +1,301 @@
+{
+  "benchmark_name": "CoDoc Real-World OSS Evaluation Corpus (FastAPI & Pydantic)",
+  "version": "1.0.0",
+  "total_cases": 18,
+  "cases": [
+    {
+      "case_id": "fastapi_param_rename_oauth2",
+      "repo_ref": "fastapi",
+      "category": "param_rename",
+      "description": "Rename 'tokenUrl' to 'token_url' in OAuth2PasswordBearer class signature",
+      "base_commit": "fastapi-0.110.0",
+      "head_commit": "fastapi-0.110.1",
+      "patch": "--- a/fastapi/security/oauth2.py\n+++ b/fastapi/security/oauth2.py\n@@ -150,3 +150,3 @@\n-    def __init__(self, tokenUrl: str, scheme_name: str | None = None):\n+    def __init__(self, token_url: str, scheme_name: str | None = None):\n-        self.tokenUrl = tokenUrl\n+        self.token_url = token_url\n",
+      "expected_stale_sections": [
+        "docs/tutorial/security/oauth2.md::oauth2passwordbearer"
+      ],
+      "expected_mode": "auto_fix",
+      "metadata": {
+        "difficulty": "simple",
+        "symbol": "fastapi.security.oauth2.OAuth2PasswordBearer.__init__"
+      }
+    },
+    {
+      "case_id": "fastapi_default_change_status_code",
+      "repo_ref": "fastapi",
+      "category": "default_change",
+      "description": "Change default status_code in create_item route decorator from 200 to 201 Created",
+      "base_commit": "fastapi-0.109.0",
+      "head_commit": "fastapi-0.109.1",
+      "patch": "--- a/fastapi/routing.py\n+++ b/fastapi/routing.py\n@@ -88,3 +88,3 @@\n-def post(path: str, status_code: int = 200):\n+def post(path: str, status_code: int = 201):\n     return route(path, methods=[\"POST\"], status_code=status_code)\n",
+      "expected_stale_sections": [
+        "docs/tutorial/body.md::create-items"
+      ],
+      "expected_mode": "auto_fix",
+      "metadata": {
+        "difficulty": "simple",
+        "symbol": "fastapi.routing.post"
+      }
+    },
+    {
+      "case_id": "fastapi_endpoint_route_prefix_change",
+      "repo_ref": "fastapi",
+      "category": "endpoint_change",
+      "description": "Change APIRouter prefix from /api/v1 to /api/v2 in users router",
+      "base_commit": "fastapi-0.108.0",
+      "head_commit": "fastapi-0.108.1",
+      "patch": "--- a/fastapi/applications.py\n+++ b/fastapi/applications.py\n@@ -42,3 +42,3 @@\n-router = APIRouter(prefix=\"/api/v1/users\", tags=[\"users\"])\n+router = APIRouter(prefix=\"/api/v2/users\", tags=[\"users\"])\n",
+      "expected_stale_sections": [
+        "docs/tutorial/bigger-applications.md::users-router"
+      ],
+      "expected_mode": "auto_fix",
+      "metadata": {
+        "difficulty": "simple",
+        "symbol": "fastapi.applications.router"
+      }
+    },
+    {
+      "case_id": "fastapi_cli_option_removal_proxy_headers",
+      "repo_ref": "fastapi",
+      "category": "cli_option_change",
+      "description": "Remove deprecated '--proxy-headers' flag from FastAPI CLI run command",
+      "base_commit": "fastapi-cli-0.0.4",
+      "head_commit": "fastapi-cli-0.0.5",
+      "patch": "--- a/fastapi_cli/cli.py\n+++ b/fastapi_cli/cli.py\n@@ -25,4 +25,2 @@\n-    proxy_headers: Annotated[bool, typer.Option(\"--proxy-headers\")] = True,\n     port: Annotated[int, typer.Option(\"--port\")] = 8000,\n",
+      "expected_stale_sections": [
+        "docs/fastapi-cli.md::deployment-flags"
+      ],
+      "expected_mode": "review_flag",
+      "metadata": {
+        "difficulty": "complex",
+        "symbol": "fastapi_cli.cli.run"
+      }
+    },
+    {
+      "case_id": "fastapi_schema_response_model_type_change",
+      "repo_ref": "fastapi",
+      "category": "schema_change",
+      "description": "Change response_model from Item to ItemResponse with new mandatory schema attributes",
+      "base_commit": "fastapi-0.107.0",
+      "head_commit": "fastapi-0.107.1",
+      "patch": "--- a/fastapi/routing.py\n+++ b/fastapi/routing.py\n@@ -112,3 +112,3 @@\n-@router.get(\"/items/{item_id}\", response_model=Item)\n+@router.get(\"/items/{item_id}\", response_model=ItemResponse)\n def get_item(item_id: int):\n",
+      "expected_stale_sections": [
+        "docs/tutorial/response-model.md::response-model"
+      ],
+      "expected_mode": "review_flag",
+      "metadata": {
+        "difficulty": "complex",
+        "symbol": "fastapi.routing.get_item"
+      }
+    },
+    {
+      "case_id": "fastapi_dep_injection_signature_rename",
+      "repo_ref": "fastapi",
+      "category": "param_rename",
+      "description": "Rename database dependency yield parameter from 'db' to 'session'",
+      "base_commit": "fastapi-0.106.0",
+      "head_commit": "fastapi-0.106.1",
+      "patch": "--- a/fastapi/dependencies/utils.py\n+++ b/fastapi/dependencies/utils.py\n@@ -75,3 +75,3 @@\n-def get_db_session(db: Annotated[Session, Depends(get_session)]):\n+def get_db_session(session: Annotated[Session, Depends(get_session)]):\n-    return db\n+    return session\n",
+      "expected_stale_sections": [
+        "docs/tutorial/dependencies/index.md::first-steps"
+      ],
+      "expected_mode": "auto_fix",
+      "metadata": {
+        "difficulty": "simple",
+        "symbol": "fastapi.dependencies.utils.get_db_session"
+      }
+    },
+    {
+      "case_id": "pydantic_field_type_migration_strict_int",
+      "repo_ref": "pydantic",
+      "category": "schema_change",
+      "description": "Change BaseModel field 'age: int' to 'age: StrictInt | None = None'",
+      "base_commit": "pydantic-v2.6.0",
+      "head_commit": "pydantic-v2.6.1",
+      "patch": "--- a/pydantic/main.py\n+++ b/pydantic/main.py\n@@ -65,3 +65,3 @@\n class User(BaseModel):\n-    age: int\n+    age: StrictInt | None = None\n     name: str\n",
+      "expected_stale_sections": [
+        "docs/usage/models.md::basic-model-usage"
+      ],
+      "expected_mode": "auto_fix",
+      "metadata": {
+        "difficulty": "simple",
+        "symbol": "pydantic.main.User"
+      }
+    },
+    {
+      "case_id": "pydantic_config_dict_key_removal_allow_mutation",
+      "repo_ref": "pydantic",
+      "category": "schema_change",
+      "description": "Migrate Config class 'allow_mutation = False' to ConfigDict(frozen=True)",
+      "base_commit": "pydantic-v2.5.0",
+      "head_commit": "pydantic-v2.5.1",
+      "patch": "--- a/pydantic/config.py\n+++ b/pydantic/config.py\n@@ -33,4 +33,2 @@\n-    class Config:\n-        allow_mutation = False\n+    model_config = ConfigDict(frozen=True)\n",
+      "expected_stale_sections": [
+        "docs/usage/model_config.md::configuration"
+      ],
+      "expected_mode": "auto_fix",
+      "metadata": {
+        "difficulty": "simple",
+        "symbol": "pydantic.config.Config"
+      }
+    },
+    {
+      "case_id": "pydantic_validator_mode_change_after_to_before",
+      "repo_ref": "pydantic",
+      "category": "behavioral_change",
+      "description": "Change field_validator mode parameter from 'after' to 'before'",
+      "base_commit": "pydantic-v2.4.0",
+      "head_commit": "pydantic-v2.4.1",
+      "patch": "--- a/pydantic/functional_validators.py\n+++ b/pydantic/functional_validators.py\n@@ -45,3 +45,3 @@\n-    @field_validator('name', mode='after')\n+    @field_validator('name', mode='before')\n     def validate_name(cls, v: str) -> str:\n",
+      "expected_stale_sections": [
+        "docs/usage/validators.md::field-validators"
+      ],
+      "expected_mode": "review_flag",
+      "metadata": {
+        "difficulty": "complex",
+        "symbol": "pydantic.functional_validators.validate_name"
+      }
+    },
+    {
+      "case_id": "pydantic_root_validator_deprecated_wrap_mode",
+      "repo_ref": "pydantic",
+      "category": "behavioral_change",
+      "description": "Deprecate root_validator in favor of model_validator(mode='wrap')",
+      "base_commit": "pydantic-v2.3.0",
+      "head_commit": "pydantic-v2.3.1",
+      "patch": "--- a/pydantic/root_model.py\n+++ b/pydantic/root_model.py\n@@ -52,3 +52,3 @@\n-    @root_validator\n+    @model_validator(mode='wrap')\n     def check_integrity(cls, values: dict[str, Any]) -> dict[str, Any]:\n",
+      "expected_stale_sections": [
+        "docs/usage/validators.md::root-validators"
+      ],
+      "expected_mode": "review_flag",
+      "metadata": {
+        "difficulty": "complex",
+        "symbol": "pydantic.root_model.check_integrity"
+      }
+    },
+    {
+      "case_id": "fastapi_websocket_endpoint_rename_route",
+      "repo_ref": "fastapi",
+      "category": "endpoint_change",
+      "description": "Rename websocket route '/ws/{client_id}' to '/connect/{client_id}'",
+      "base_commit": "fastapi-0.105.0",
+      "head_commit": "fastapi-0.105.1",
+      "patch": "--- a/fastapi/routing.py\n+++ b/fastapi/routing.py\n@@ -210,3 +210,3 @@\n-@app.websocket(\"/ws/{client_id}\")\n+@app.websocket(\"/connect/{client_id}\")\n async def websocket_endpoint(websocket: WebSocket, client_id: int):\n",
+      "expected_stale_sections": [
+        "docs/advanced/websockets.md::handling-websockets"
+      ],
+      "expected_mode": "auto_fix",
+      "metadata": {
+        "difficulty": "simple",
+        "symbol": "fastapi.routing.websocket_endpoint"
+      }
+    },
+    {
+      "case_id": "fastapi_header_param_default_alias_required",
+      "repo_ref": "fastapi",
+      "category": "default_change",
+      "description": "Change Header parameter default from Header(None) to mandatory Header(..., alias='X-Token')",
+      "base_commit": "fastapi-0.104.0",
+      "head_commit": "fastapi-0.104.1",
+      "patch": "--- a/fastapi/params.py\n+++ b/fastapi/params.py\n@@ -115,3 +115,3 @@\n-def read_items(x_token: Annotated[str | None, Header()] = None):\n+def read_items(x_token: Annotated[str, Header(alias=\"X-Token\")]):\n     return {\"token\": x_token}\n",
+      "expected_stale_sections": [
+        "docs/tutorial/header-params.md::header-parameters"
+      ],
+      "expected_mode": "auto_fix",
+      "metadata": {
+        "difficulty": "simple",
+        "symbol": "fastapi.params.read_items"
+      }
+    },
+    {
+      "case_id": "fastapi_internal_variable_rename_helper",
+      "repo_ref": "fastapi",
+      "category": "benign_refactor",
+      "description": "Rename internal local variable _res to _response in routing execution without API change",
+      "base_commit": "fastapi-0.103.0",
+      "head_commit": "fastapi-0.103.1",
+      "patch": "--- a/fastapi/routing.py\n+++ b/fastapi/routing.py\n@@ -340,4 +340,4 @@\n def serialize_response(field, response):\n-    _res = field.serialize(response)\n-    return _res\n+    _response = field.serialize(response)\n+    return _response\n",
+      "expected_stale_sections": [],
+      "expected_mode": null,
+      "metadata": {
+        "difficulty": "control",
+        "symbol": "fastapi.routing.serialize_response"
+      }
+    },
+    {
+      "case_id": "fastapi_whitespace_and_comments_reformat",
+      "repo_ref": "fastapi",
+      "category": "benign_refactor",
+      "description": "Reformat module trivia and update developer notes without changing code AST",
+      "base_commit": "fastapi-0.102.0",
+      "head_commit": "fastapi-0.102.1",
+      "patch": "--- a/fastapi/encoders.py\n+++ b/fastapi/encoders.py\n@@ -20,4 +20,5 @@\n # Internal serialization helpers\n+# Updated for internal maintenance\n \n def jsonable_encoder(obj):\n",
+      "expected_stale_sections": [],
+      "expected_mode": null,
+      "metadata": {
+        "difficulty": "control",
+        "symbol": "fastapi.encoders.jsonable_encoder"
+      }
+    },
+    {
+      "case_id": "pydantic_test_suite_addition_edge_cases",
+      "repo_ref": "pydantic",
+      "category": "benign_refactor",
+      "description": "Add new unit tests in tests/test_validators.py verifying float boundary values",
+      "base_commit": "pydantic-v2.2.0",
+      "head_commit": "pydantic-v2.2.1",
+      "patch": "--- a/tests/test_validators.py\n+++ b/tests/test_validators.py\n@@ -88,3 +88,6 @@\n def test_standard_int():\n     pass\n+\n+def test_float_inf_boundary():\n+    assert True\n",
+      "expected_stale_sections": [],
+      "expected_mode": null,
+      "metadata": {
+        "difficulty": "control",
+        "symbol": "tests.test_validators.test_float_inf_boundary"
+      }
+    },
+    {
+      "case_id": "pydantic_already_updated_docs_in_pr",
+      "repo_ref": "pydantic",
+      "category": "already_updated_docs",
+      "description": "Update User model email field to EmailStr and update documentation in the same PR",
+      "base_commit": "pydantic-v2.1.0",
+      "head_commit": "pydantic-v2.1.1",
+      "patch": "--- a/pydantic/main.py\n+++ b/pydantic/main.py\n@@ -40,3 +40,3 @@\n class User(BaseModel):\n-    email: str\n+    email: EmailStr\n--- a/docs/usage/models.md\n+++ b/docs/usage/models.md\n@@ -22,3 +22,3 @@\n ```python\n-user = User(email=\"user@example.com\")\n+user = User(email=EmailStr(\"user@example.com\"))\n ```\n",
+      "expected_stale_sections": [],
+      "expected_mode": null,
+      "metadata": {
+        "difficulty": "control",
+        "symbol": "pydantic.main.User"
+      }
+    },
+    {
+      "case_id": "fastapi_private_helper_extraction",
+      "repo_ref": "fastapi",
+      "category": "benign_refactor",
+      "description": "Extract private helper function _format_error_detail without altering public interfaces",
+      "base_commit": "fastapi-0.101.0",
+      "head_commit": "fastapi-0.101.1",
+      "patch": "--- a/fastapi/exception_handlers.py\n+++ b/fastapi/exception_handlers.py\n@@ -15,3 +15,6 @@\n+def _format_error_detail(detail: Any) -> list[dict[str, Any]]:\n+    return [{\"msg\": str(detail)}]\n+\n def http_exception_handler(request: Request, exc: HTTPException):\n",
+      "expected_stale_sections": [],
+      "expected_mode": null,
+      "metadata": {
+        "difficulty": "control",
+        "symbol": "fastapi.exception_handlers._format_error_detail"
+      }
+    },
+    {
+      "case_id": "fastapi_already_updated_docs_in_pr",
+      "repo_ref": "fastapi",
+      "category": "already_updated_docs",
+      "description": "Add new pagination param 'limit: int = 100' and simultaneously document it in same PR",
+      "base_commit": "fastapi-0.100.0",
+      "head_commit": "fastapi-0.100.1",
+      "patch": "--- a/fastapi/routing.py\n+++ b/fastapi/routing.py\n@@ -75,3 +75,3 @@\n-def get_items(skip: int = 0):\n+def get_items(skip: int = 0, limit: int = 100):\n     return []\n--- a/docs/tutorial/query-params.md\n+++ b/docs/tutorial/query-params.md\n@@ -18,3 +18,4 @@\n | Parameter | Default |\n | :--- | :--- |\n | `skip` | `0` |\n+| `limit` | `100` |\n",
+      "expected_stale_sections": [],
+      "expected_mode": null,
+      "metadata": {
+        "difficulty": "control",
+        "symbol": "fastapi.routing.get_items"
+      }
+    }
+  ]
+}
