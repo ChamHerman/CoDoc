@@ -66,6 +66,10 @@ outputs:
   report_json:
     description: 'Complete RunReport payload formatted as JSON.'
 
+branding:
+  icon: 'book-open'
+  color: 'blue'
+
 runs:
   using: 'docker'
   image: 'Dockerfile'

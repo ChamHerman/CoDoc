@@ -59,6 +59,23 @@ def test_action_manifest_exists_and_valid() -> None:
     assert str(cfg.max_suspects) in content
     assert cfg.llm_model in content
 
+    # Verify Marketplace branding
+    assert "branding:" in content
+    assert "icon: 'book-open'" in content or 'icon: "book-open"' in content
+    assert "color: 'blue'" in content or 'color: "blue"' in content
+
+
+def test_release_workflow_exists_and_configured() -> None:
+    release_wf_path = Path(".github/workflows/release.yml")
+    assert release_wf_path.is_file(), ".github/workflows/release.yml must exist"
+    content = release_wf_path.read_text(encoding="utf-8")
+
+    assert "name:" in content
+    assert "tags:" in content
+    assert "'v*'" in content or '"v*"' in content
+    assert "ghcr.io" in content
+    assert "v1" in content
+
 
 def test_dockerfile_structure() -> None:
     dockerfile_path = Path("Dockerfile")
