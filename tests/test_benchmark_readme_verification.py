@@ -24,7 +24,7 @@ def test_readme_exists_and_contains_benchmark_table() -> None:
     content = readme_path.read_text(encoding="utf-8")
 
     assert "# CoDoc" in content
-    assert "## Benchmark Evaluation Results" in content or "## Benchmark Results" in content
+    assert "## Benchmark Evaluation Results" in content or "## 📊 Benchmark Evaluation Results" in content
     assert "| Metric | Value |" in content
     assert "Precision" in content
     assert "Recall" in content
@@ -32,6 +32,18 @@ def test_readme_exists_and_contains_benchmark_table() -> None:
     assert "FastAPI" in content
     assert "Pydantic" in content
     assert "Methodology" in content
+
+    # Issue #28 requirements:
+    assert "Executive Summary" in content
+    assert "Technology Stack" in content
+    assert "for-the-badge" in content
+    assert "Configuration Reference" in content
+    assert "github_token" in content
+    assert "llm_api_key" in content
+    assert "confidence_threshold" in content
+    assert "fail_on_stale" in content
+    assert "```mermaid" in content
+    assert "FAQ" in content or "Troubleshooting" in content
 
 
 def test_benchmark_results_json_matches_manifest() -> None:
