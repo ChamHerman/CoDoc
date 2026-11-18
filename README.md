@@ -40,6 +40,30 @@ Technical documentation routinely drifts out of sync as codebases evolve. Even d
 
 ---
 
+## 🎬 Interactive Demonstration Walkthrough
+
+<div align="center">
+  <a href="docs/DEMO_STORYBOARD.md">
+    <img src="docs/assets/demo-preview.svg" alt="CoDoc End-to-End Walkthrough Demonstration" width="100%" />
+  </a>
+  <p><em>Click the showcase banner above to read the complete 5-act scene-by-scene demo script, audio screenplay, and visual storyboard.</em></p>
+</div>
+
+| Scene / Act | Timeline | Key Workflow Demonstrated | CI/PR Outcome |
+| :--- | :---: | :--- | :--- |
+| **Act 1: Problem Hook** | `0:00 - 0:30` | Silent API drift (`calculate_risk_score` signature change) breaks onboarding docs | Unnoticed documentation rot identified |
+| **Act 2: Feature PR Push** | `0:30 - 1:05` | Developer opens PR #42 modifying route logic without updating `docs/` | Pull Request submitted to GitHub |
+| **Act 3: CI Action Run** | `1:05 - 1:45` | GitHub Actions workflow triggers CoDoc: AST diff filter + LinkGraph traversal | 24.3s autonomous analysis |
+| **Act 4: RunReport Comment** | `1:45 - 2:15` | Action comments diagnostic report with staleness score, table, and diff suggestions | Single in-place PR comment upserted |
+| **Act 5: Auto-Fix PR & Close** | `2:15 - 2:45` | CoDoc opens companion PR `codoc/fix-pr-42` with 3-criteria validated doc repairs | 100% doc sync restored in 1-click |
+
+> 💡 **Screenplay & Pre-Release Resources**:
+> - 📄 **Complete Demonstration Screenplay & Storyboard**: [docs/DEMO_STORYBOARD.md](docs/DEMO_STORYBOARD.md)
+> - 📋 **Pre-Release & Marketplace Publication Checklist**: [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md)
+> - 🖼️ **Full-Resolution Demo Video Poster**: [docs/assets/demo-hero-poster.svg](docs/assets/demo-hero-poster.svg)
+
+---
+
 ## 🛠️ Technology Stack
 
 <div align="center">
